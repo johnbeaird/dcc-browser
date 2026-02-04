@@ -2967,7 +2967,10 @@ function endWave() {
 
 function enterSafeRoom() {
     gameState = 'SAFEROOM'; ui.safeRoom.classList.remove('hidden'); ui.safeScore.innerText = score; ui.safeFloor.innerText = floor;
-    
+
+    // Auto-scroll to top of safe room UI
+    ui.safeRoom.scrollTop = 0;
+
     // Loot UI Setup
     ui.safeLootCount.innerText = player.lootBoxes;
     ui.lootResults.innerText = "";
