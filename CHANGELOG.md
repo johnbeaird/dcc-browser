@@ -5,6 +5,35 @@ All notable changes to Dungeon Crawler Carl: The Browser Incident will be docume
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-03 - "The Iron Tangle"
+
+### Added
+- **Katia NPC**: Rival crawler who appears randomly in combat rooms (30% chance) on Floor 3+
+  - Can be interacted with (Press Space when nearby)
+  - Provides random buffs: speed boost, healing, items, or tips
+  - Fights alongside player when enemies are present
+  - Throws knives at enemies from range
+- **6 New Complex Room Templates**:
+  - Desecrated Cathedral - Large religious room with altar, side chapels, and pews
+  - Chasm Bridge - Narrow bridge over deadly gap with platforms on each side
+  - Maze of Madness - Complex labyrinth with many dead ends and tight corridors
+  - Arena of Peril - Trapped arena with spike pits and corner platforms
+  - Vertical Shaft - Tall narrow room with horizontal platforms
+  - Collapsed Tunnel - Rubble-filled winding path with support beams
+- **6 New Enemy Types** (appear on progressively higher floors):
+  - Wraith 🌫️ (Floor 5+) - Fades in/out (invisible phases), fast melee attacker
+  - Golem 🗿 (Floor 6+) - Slow heavy tank with AOE ground pound attack
+  - Imp 👿 (Floor 5+) - Teleports around player, ranged fire attacks
+  - Necromancer 🧙 (Floor 6+) - Summons skeleton minions, dark magic ranged attacks
+  - Drake 🐉 (Floor 7+) - Flying enemy that ignores walls, cone fire breath attack
+  - Banshee 👰‍♀️ (Floor 7+) - Screams to stun player, phases through walls
+
+### Changed
+- Total enemy types expanded from 13 to 19
+- Total room templates expanded from 17 to 23
+- Progressive enemy unlock system: new enemies appear on higher floors (5-7)
+- Enemy variety scales with floor depth for increased difficulty curve
+
 ## [0.3.0] - 2026-02-03 - "The Awakening"
 
 ### Added

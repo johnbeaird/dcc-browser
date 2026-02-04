@@ -1,10 +1,10 @@
 # Dungeon Crawler Carl: The Browser Incident
 
-**Version 0.3.0 - "The Awakening"**
+**Version 0.4.0 - "The Iron Tangle"**
 
 A browser-based dungeon crawler game inspired by the web novel series "Dungeon Crawler Carl" by Matt Dinniman. This game is built using HTML5 Canvas, CSS, and vanilla JavaScript.
 
-> 🎮 **Latest Update**: 8 new enemy types with unique mechanics, 6 themed room templates, and advanced proximity-based AI!
+> 🎮 **Latest Update**: Katia NPC rival crawler, 6 complex room templates, and 6 new high-tier enemies!
 
 ## How to Run
 
@@ -19,11 +19,12 @@ A browser-based dungeon crawler game inspired by the web novel series "Dungeon C
 
 Players control Carl and his cat Donut as they navigate through procedurally generated dungeon floors, fighting monsters, collecting loot, and clearing rooms to progress deeper. The game features:
 
-- **Procedural room-based dungeons** with 12+ unique layouts
-- **13 enemy types** with unique AI behaviors and mechanics
+- **Procedural room-based dungeons** with 23 unique layouts
+- **19 enemy types** with unique AI behaviors and mechanics
 - **Proximity-based AI** - enemies sleep until you get close
-- **Themed rooms** - Treasure Vault, Crypt, Throne Room, Library, Prison
-- **Advanced enemy mechanics** - slimes split, skeletons revive, ghosts phase through walls
+- **Katia NPC** - Rival crawler who appears randomly, provides buffs and fights alongside you
+- **Themed rooms** - Cathedral, Chasm Bridge, Labyrinth, Treasure Vault, Crypt, Throne Room, Library, Prison
+- **Advanced enemy mechanics** - slimes split, skeletons revive, ghosts phase through walls, necromancers summon minions
 - Real-time tactical combat with positioning and cover
 - Inventory system with bombs, potions, traps, and special items
 - Live chat simulation with viewer interactions
