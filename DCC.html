@@ -1788,12 +1788,12 @@ function transitionToRoom(roomIndex) {
     // Determine which side the player entered from based on room index difference
     if (previousRoomIndex >= 0) {
         if (roomIndex > previousRoomIndex) {
-            // Entered from left door, spawn on left side
-            spawnX = room.worldX + 100;
+            // Entered from left door, spawn well inside room (past door)
+            spawnX = room.worldX + 200;
             spawnY = center.y;
         } else {
-            // Entered from right door, spawn on right side
-            spawnX = room.worldX + room.width - 100;
+            // Entered from right door, spawn well inside room (past door)
+            spawnX = room.worldX + room.width - 200;
             spawnY = center.y;
         }
     }
@@ -2968,8 +2968,11 @@ function endWave() {
 function enterSafeRoom() {
     gameState = 'SAFEROOM'; ui.safeRoom.classList.remove('hidden'); ui.safeScore.innerText = score; ui.safeFloor.innerText = floor;
 
-    // Auto-scroll to top of safe room UI
-    ui.safeRoom.scrollTop = 0;
+    // Auto-scroll to top of safe room UI (scroll the panel, not the container)
+    setTimeout(() => {
+        const panel = ui.safeRoom.querySelector('.safe-room-panel');
+        if (panel) panel.scrollTop = 0;
+    }, 0);
 
     // Loot UI Setup
     ui.safeLootCount.innerText = player.lootBoxes;
