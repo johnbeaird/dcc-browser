@@ -1775,6 +1775,35 @@ function checkWallCollision(entity, radius) {
     });
 }
 
+// Calculate separation force to prevent enemy bunching
+function calculateSeparationForce(enemy, enemies, separationRadius, separationStrength) {
+    let separationForce = new Vector2(0, 0);
+    let nearbyCount = 0;
+
+    // Only check enemies within reasonable distance (performance optimization)
+    const checkRadius = separationRadius * 2;
+
+    for (let other of enemies) {
+        if (other === enemy || other.dead) continue;
+
+        const dist = enemy.pos.dist(other.pos);
+        if (dist < checkRadius && dist > 0) {
+            // Closer enemies = stronger repulsion
+            const repulsionStrength = Math.max(0, (separationRadius - dist) / separationRadius);
+            const awayDir = enemy.pos.sub(other.pos).normalize();
+            separationForce = separationForce.add(awayDir.scale(repulsionStrength));
+            nearbyCount++;
+        }
+    }
+
+    // Average the force if multiple neighbors
+    if (nearbyCount > 0) {
+        separationForce = separationForce.scale(separationStrength / nearbyCount);
+    }
+
+    return separationForce;
+}
+
 function checkDoorCollision(px, py) {
     const room = getCurrentRoom();
     if (!room) return null;
@@ -1829,16 +1858,28 @@ function transitionToRoom(roomIndex) {
     // Spawn enemies if room not cleared - spawn them AWAY from player
     if (!room.cleared && room.template.spawns > 0) {
         const numEnemies = room.template.spawns + Math.floor(floor / 2);
+        const minEnemySpacing = 80; // Minimum distance between spawned enemies
+
         for (let i = 0; i < numEnemies; i++) {
             let spawnPos;
-            // Try to spawn at least 200px from player
+            // Try to spawn at least 200px from player AND away from other enemies
             for (let attempt = 0; attempt < 15; attempt++) {
                 spawnPos = room.getSpawnPoint();
                 const distToPlayer = Math.sqrt(
                     Math.pow(spawnPos.x - player.pos.x, 2) +
                     Math.pow(spawnPos.y - player.pos.y, 2)
                 );
-                if (distToPlayer >= 200) break;
+
+                // Check distance to already-spawned enemies
+                let tooCloseToEnemy = false;
+                for (let e of enemies) {
+                    if (e.pos.dist(spawnPos) < minEnemySpacing) {
+                        tooCloseToEnemy = true;
+                        break;
+                    }
+                }
+
+                if (distToPlayer >= 200 && !tooCloseToEnemy) break;
             }
             const types = ['goblin', 'goblin', 'bat'];
             if (floor >= 2) types.push('kobold', 'slime');
@@ -1864,13 +1905,16 @@ function transitionToRoom(roomIndex) {
                 bossTitle = "MAJOR BOSS";
                 // Spawn boss with some elite guards
                 enemies.push(new Enemy(bossPos.x, bossPos.y, bossType));
-                // Add 2-3 elite enemies
-                for (let i = 0; i < 2 + Math.floor(floor / 3); i++) {
-                    const offset = new Vector2(
-                        (Math.random() - 0.5) * 200,
-                        (Math.random() - 0.5) * 200
+                // Add 2-3 elite enemies in circular formation
+                const numGuards = 2 + Math.floor(floor / 3);
+                for (let i = 0; i < numGuards; i++) {
+                    // Spread guards in circular formation around boss
+                    const angle = (Math.PI * 2 / numGuards) * i;
+                    const distance = 150 + Math.random() * 50;
+                    const guardPos = new Vector2(
+                        bossPos.x + Math.cos(angle) * distance,
+                        bossPos.y + Math.sin(angle) * distance
                     );
-                    const guardPos = bossPos.add(offset);
                     const eliteTypes = ['ogre', 'ghost', 'assassin', 'shaman', 'wraith', 'golem'];
                     const guardType = eliteTypes[Math.floor(Math.random() * eliteTypes.length)];
                     enemies.push(new Enemy(guardPos.x, guardPos.y, guardType));
@@ -2290,6 +2334,32 @@ class Enemy extends Entity {
         this.strafeDir = Math.random() < 0.5 ? 1 : -1; // Circle direction
         this.strafeTimer = 2 + Math.random() * 2; // How long to circle before rushing
         this.sleepBob = Math.random() * Math.PI * 2; // Breathing animation offset
+
+        // Separation behavior parameters (prevent bunching)
+        this.separationRadius = size * 1.5; // How close before repelling
+        this.separationStrength = 50; // Strength of separation force
+
+        // Type-specific separation overrides
+        if (type === 'boss' || type === 'ogre' || type === 'golem') {
+            this.separationRadius = size * 2; // Large enemies need more space
+            this.separationStrength = 80;
+        }
+        if (type === 'bat' || type === 'wraith' || type === 'ghost' || type === 'drake' || type === 'banshee') {
+            this.separationRadius = size * 1.2; // Flying/ethereal can overlap more
+            this.separationStrength = 30;
+        }
+        if (type === 'slime') {
+            this.separationRadius = size * 1.3; // Slimes can squish together a bit
+            this.separationStrength = 40;
+        }
+        if (type === 'hound') {
+            this.separationRadius = size * 1.2; // Pack hunters allow closer grouping
+            this.separationStrength = 40;
+        }
+        if (type === 'assassin') {
+            this.separationRadius = size * 1.3; // Need to flank together
+            this.separationStrength = 35;
+        }
     }
     update(dt, player) {
         if (!player) return;
@@ -2304,9 +2374,18 @@ class Enemy extends Entity {
 
         // Kobolds have special ranged behavior
         if (this.type === 'kobold') {
-            if (dist > 350) this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
-            else if (dist < 200) this.pos = this.pos.sub(diff.normalize().scale(effectiveSpeed * 0.8 * dt));
-            else this.isMoving = false;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
+            if (dist > 350) {
+                const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
+            } else if (dist < 200) {
+                const moveDir = diff.normalize().scale(-effectiveSpeed * 0.8 * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
+            } else {
+                this.isMoving = false;
+                // Still apply separation even when not moving toward player
+                this.pos = this.pos.add(separation.scale(dt));
+            }
             this.attackTimer -= dt;
             if (this.attackTimer <= 0 && dist < 450) {
                 this.attackTimer = 3.0;
@@ -2321,13 +2400,15 @@ class Enemy extends Entity {
         // Bats are erratic - they swoop and dive
         if (this.type === 'bat') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Erratic movement with sine waves
             let swoopAngle = Math.sin(gameTime * 5 + this.bounceOffset * 10) * 0.8;
             let swoopDir = new Vector2(
                 Math.cos(Math.atan2(diff.y, diff.x) + swoopAngle),
                 Math.sin(Math.atan2(diff.y, diff.x) + swoopAngle)
             );
-            this.pos = this.pos.add(swoopDir.scale(effectiveSpeed * dt));
+            const moveDir = swoopDir.scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             // Bats bob up and down
             this.z = Math.sin(gameTime * 8 + this.bounceOffset) * 15;
             if (dist < (this.size + player.size)/2 + 10) {
@@ -2343,7 +2424,9 @@ class Enemy extends Entity {
         // Slime - slow but splits when killed
         if (this.type === 'slime') {
             this.isMoving = true;
-            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
+            const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             // Slime jiggle animation
             this.angle = Math.sin(gameTime * 10) * 0.2;
             if (dist < (this.size + player.size)/2) {
@@ -2359,12 +2442,14 @@ class Enemy extends Entity {
         // Spider - fast, leaves webs
         if (this.type === 'spider') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Quick darting movements
             if (!this.dashTimer) this.dashTimer = 0;
             this.dashTimer -= dt;
             if (this.dashTimer <= 0) {
                 // Quick dash toward player
-                this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * 2 * dt));
+                const moveDir = diff.normalize().scale(effectiveSpeed * 2 * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
                 this.dashTimer = 2 + Math.random();
                 // Leave web trap occasionally
                 if (Math.random() < 0.1) {
@@ -2383,11 +2468,15 @@ class Enemy extends Entity {
 
         // Ogre - slow tank, throws rocks
         if (this.type === 'ogre') {
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             if (dist > 300) {
                 this.isMoving = true;
-                this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+                const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
             } else {
                 this.isMoving = false;
+                // Apply separation when stationary
+                this.pos = this.pos.add(separation.scale(dt));
                 this.attackTimer -= dt;
                 if (this.attackTimer <= 0) {
                     this.attackTimer = 4.0;
@@ -2408,8 +2497,10 @@ class Enemy extends Entity {
         // Ghost - phases through walls, teleports
         if (this.type === 'ghost') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Float toward player, ignore walls
-            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             // Ethereal wobble
             this.angle = Math.sin(gameTime * 4) * 0.2;
             // Teleport occasionally when far
@@ -2438,8 +2529,10 @@ class Enemy extends Entity {
         // Hound - pack hunter, calls for help
         if (this.type === 'hound') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Fast aggressive chase
-            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             // Howl to wake nearby enemies
             if (!this.howlCooldown) this.howlCooldown = 0;
             this.howlCooldown -= dt;
@@ -2466,12 +2559,16 @@ class Enemy extends Entity {
 
         // Shaman - stays back, buffs allies, ranged magic
         if (this.type === 'shaman') {
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Keep distance from player
             if (dist < 300) {
                 this.isMoving = true;
-                this.pos = this.pos.sub(diff.normalize().scale(effectiveSpeed * 0.8 * dt));
+                const moveDir = diff.normalize().scale(-effectiveSpeed * 0.8 * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
             } else {
                 this.isMoving = false;
+                // Apply separation when stationary
+                this.pos = this.pos.add(separation.scale(dt));
             }
             // Cast buff on nearby allies
             if (!this.buffCooldown) this.buffCooldown = 0;
@@ -2504,11 +2601,12 @@ class Enemy extends Entity {
         // Assassin - fast, tries to get behind player for backstab
         if (this.type === 'assassin') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Try to circle behind player
             const behindPlayer = new Vector2(-diff.x, -diff.y).normalize();
             const circleDir = new Vector2(-diff.y, diff.x).normalize();
-            const moveDir = behindPlayer.add(circleDir).normalize();
-            this.pos = this.pos.add(moveDir.scale(effectiveSpeed * dt));
+            const moveDir = behindPlayer.add(circleDir).normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             // Check for backstab
             if (dist < (this.size + player.size)/2) {
                 // Backstab bonus if approaching from behind
@@ -2531,12 +2629,14 @@ class Enemy extends Entity {
         // Wraith - invisible/fades, fast melee
         if (this.type === 'wraith') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Fade in and out (alpha oscillates)
             if (!this.fadeTimer) this.fadeTimer = 0;
             this.fadeTimer += dt;
             this.alpha = 0.3 + Math.abs(Math.sin(this.fadeTimer * 2)) * 0.7;
             // Fast approach
-            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             if (dist < (this.size + player.size)/2) {
                 if (playerGraceTimer <= 0) player.takeDamage(15);
                 this.stunned = 0.4;
@@ -2549,11 +2649,15 @@ class Enemy extends Entity {
 
         // Golem - slow heavy tank, ground pound AOE
         if (this.type === 'golem') {
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             if (dist > 250) {
                 this.isMoving = true;
-                this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+                const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
             } else {
                 this.isMoving = false;
+                // Apply separation when stationary
+                this.pos = this.pos.add(separation.scale(dt));
                 // Ground pound attack
                 if (!this.poundCooldown) this.poundCooldown = 0;
                 this.poundCooldown -= dt;
@@ -2582,6 +2686,7 @@ class Enemy extends Entity {
         // Imp - teleports around, ranged fire attacks
         if (this.type === 'imp') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Erratic movement
             if (!this.teleportCooldown) this.teleportCooldown = 0;
             this.teleportCooldown -= dt;
@@ -2600,7 +2705,8 @@ class Enemy extends Entity {
             } else {
                 // Strafe around player
                 const strafeDir = new Vector2(-diff.y, diff.x).normalize();
-                this.pos = this.pos.add(strafeDir.scale(effectiveSpeed * dt));
+                const moveDir = strafeDir.scale(effectiveSpeed * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
             }
             // Fire attack
             this.attackTimer -= dt;
@@ -2616,24 +2722,37 @@ class Enemy extends Entity {
 
         // Necromancer - summons skeletons, stays back
         if (this.type === 'necromancer') {
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Keep distance
             if (dist < 350) {
                 this.isMoving = true;
-                this.pos = this.pos.sub(diff.normalize().scale(effectiveSpeed * dt));
+                const moveDir = diff.normalize().scale(-effectiveSpeed * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
             } else {
                 this.isMoving = false;
+                // Apply separation when stationary
+                this.pos = this.pos.add(separation.scale(dt));
             }
             // Summon skeleton minions
             if (!this.summonCooldown) this.summonCooldown = 0;
             this.summonCooldown -= dt;
             if (this.summonCooldown <= 0 && enemies.filter(e => e.type === 'skeleton').length < 4) {
                 this.summonCooldown = 8;
-                // Summon skeleton near necromancer
+                // Summon skeleton near necromancer (increased spacing)
                 const spawnOffset = new Vector2(
-                    (Math.random() - 0.5) * 100,
-                    (Math.random() - 0.5) * 100
+                    (Math.random() - 0.5) * 150, // Increased from 100
+                    (Math.random() - 0.5) * 150
                 );
-                const summonPos = this.pos.add(spawnOffset);
+                let summonPos = this.pos.add(spawnOffset);
+
+                // Check if too close to other enemies and adjust if needed
+                let tooClose = enemies.some(e => e.pos.dist(summonPos) < 60);
+                if (tooClose) {
+                    // Try alternate position further away
+                    spawnOffset.x += 100;
+                    summonPos = this.pos.add(spawnOffset);
+                }
+
                 enemies.push(new Enemy(summonPos.x, summonPos.y, 'skeleton'));
                 effects.push(new Effect(summonPos.x, summonPos.y, '💀', 60, 1));
                 playSound('powerup');
@@ -2653,8 +2772,10 @@ class Enemy extends Entity {
         // Drake - flying (ignores some walls), fire breath
         if (this.type === 'drake') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Flying movement - ignore wall collision occasionally
-            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             // Hover animation
             this.z = Math.sin(gameTime * 3) * 20;
             // Fire breath attack
@@ -2683,8 +2804,10 @@ class Enemy extends Entity {
         // Banshee - screams to stun, phases through walls
         if (this.type === 'banshee') {
             this.isMoving = true;
+            const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
             // Float toward player, ignore walls like ghost
-            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            const moveDir = diff.normalize().scale(effectiveSpeed * dt).add(separation.scale(dt));
+            this.pos = this.pos.add(moveDir);
             // Ethereal float
             this.angle = Math.sin(gameTime * 3) * 0.3;
             this.z = Math.sin(gameTime * 2) * 10;
@@ -2758,7 +2881,10 @@ class Enemy extends Entity {
                 // Also move toward player slowly
                 let towardPlayer = diff.normalize().scale(0.3);
                 let moveDir = perpDir.add(towardPlayer).normalize();
-                this.pos = this.pos.add(moveDir.scale(effectiveSpeed * 0.6 * dt));
+                // Add separation force
+                const separation = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
+                moveDir = moveDir.scale(effectiveSpeed * 0.6 * dt).add(separation.scale(dt));
+                this.pos = this.pos.add(moveDir);
                 // Switch strafe direction occasionally
                 if (Math.random() < 0.01) this.strafeDir *= -1;
                 // Switch to attacking when close enough or timer runs out
@@ -2770,7 +2896,10 @@ class Enemy extends Entity {
             case 'attacking':
                 // Rush the player!
                 this.isMoving = true;
-                this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+                // Add separation force
+                const separation2 = calculateSeparationForce(this, enemies, this.separationRadius, this.separationStrength);
+                const moveDir2 = diff.normalize().scale(effectiveSpeed * dt).add(separation2.scale(dt));
+                this.pos = this.pos.add(moveDir2);
                 if (dist < (this.size + player.size)/2) {
                     if (playerGraceTimer <= 0) player.takeDamage(10);
                     this.stunned = 0.5;
@@ -2802,9 +2931,9 @@ class Enemy extends Entity {
 
             // Special death behaviors
             if (this.type === 'slime' && this.size > 25) {
-                // Slime splits into 2 smaller slimes
+                // Slime splits into 2 smaller slimes (increased spacing to prevent bunching)
                 const newSize = this.size * 0.6;
-                const offset = 30;
+                const offset = 60; // Increased from 30 to prevent immediate bunching
                 const slime1 = new Enemy(this.pos.x + offset, this.pos.y, 'slime');
                 const slime2 = new Enemy(this.pos.x - offset, this.pos.y, 'slime');
                 slime1.size = newSize; slime1.hp = Math.floor(this.maxHp * 0.5); slime1.maxHp = Math.floor(this.maxHp * 0.5);
@@ -2819,7 +2948,13 @@ class Enemy extends Entity {
                 const skeletonPos = new Vector2(this.pos.x, this.pos.y);
                 setTimeout(() => {
                     if (getCurrentRoom()) {
-                        const revived = new Enemy(skeletonPos.x, skeletonPos.y, 'skeleton');
+                        // Add random offset to avoid spawning on other enemies
+                        const reviveOffset = new Vector2(
+                            (Math.random() - 0.5) * 60,
+                            (Math.random() - 0.5) * 60
+                        );
+                        const revivePos = skeletonPos.add(reviveOffset);
+                        const revived = new Enemy(revivePos.x, revivePos.y, 'skeleton');
                         revived.hasRevived = true; revived.hp = Math.floor(revived.maxHp * 0.5); revived.aiState = 'attacking';
                         enemies.push(revived);
                         effects.push(new Effect(skeletonPos.x, skeletonPos.y, '☠️', 100, 1));
