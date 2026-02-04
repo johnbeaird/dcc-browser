@@ -1613,12 +1613,28 @@ function transitionToRoom(roomIndex) {
     const room = getCurrentRoom();
     room.explored = true;
 
-    // Position player at center of room (no offset - was causing collision issues)
+    // Position player just inside the door they entered from
     const center = room.getCenter();
-    console.log(`[DEBUG] Transitioning to room ${roomIndex} - setting player pos to (${center.x}, ${center.y})`);
-    player.pos = new Vector2(center.x, center.y);
-    donut.pos = new Vector2(center.x - 30, center.y);
-    if (mongo) mongo.pos = new Vector2(center.x + 30, center.y);
+    let spawnX = center.x;
+    let spawnY = center.y;
+
+    // Determine which side the player entered from based on room index difference
+    if (previousRoomIndex >= 0) {
+        if (roomIndex > previousRoomIndex) {
+            // Entered from left door, spawn on left side
+            spawnX = room.worldX + 100;
+            spawnY = center.y;
+        } else {
+            // Entered from right door, spawn on right side
+            spawnX = room.worldX + room.width - 100;
+            spawnY = center.y;
+        }
+    }
+
+    console.log(`[DEBUG] Transitioning to room ${roomIndex} - spawning at (${spawnX}, ${spawnY})`);
+    player.pos = new Vector2(spawnX, spawnY);
+    donut.pos = new Vector2(spawnX - 30, spawnY);
+    if (mongo) mongo.pos = new Vector2(spawnX + 30, spawnY);
 
     // Clear projectiles and effects when changing rooms
     projectiles = [];
