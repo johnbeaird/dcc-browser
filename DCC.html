@@ -94,7 +94,7 @@
         .user-name { font-weight: bold; color: #aaa; } .user-mod { color: #d4af37; text-shadow: 0 0 5px #d4af37; } .msg-text { color: #fff; }
 
         /* Inventory */
-        #inventory-bar { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+        #inventory-bar { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
         .inv-slot {
             width: 60px; height: 60px; background: rgba(0,0,0,0.8); border: 2px solid #555;
             display: flex; align-items: center; justify-content: center; font-size: 30px; color: white; position: relative; cursor: pointer;
@@ -106,7 +106,7 @@
 
         /* System Log */
         #system-log {
-            position: absolute; bottom: 150px; left: 20px; width: 450px; height: 250px;
+            position: absolute; bottom: 180px; left: 20px; width: 450px; height: 250px;
             background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0, 0, 0, 0.9) 60%);
             border-left: 0px solid #0f0;
             padding: 15px; overflow-y: hidden; display: flex; flex-direction: column; justify-content: flex-end;
@@ -3491,6 +3491,83 @@ function drawMiniMap(ctx) {
 }
 
 /**
+ * Draws indicators (arrows) pointing to nearby doors that are off-screen
+ */
+function drawDoorIndicators(ctx) {
+    if (!player || gameState === 'SAFEROOM' || gameState === 'PAUSE') return;
+
+    const room = getCurrentRoom();
+    if (!room || !room.doors || room.doors.length === 0) return;
+
+    const margin = 100; // Distance from screen edge to show indicators
+    const indicatorSize = 40;
+
+    room.doors.forEach(door => {
+        if (!door.active) return; // Only show indicators for active doors
+
+        // Calculate door position relative to screen
+        const doorScreenX = door.x + door.w/2 - camera.x;
+        const doorScreenY = door.y + door.h/2 - camera.y;
+
+        // Check if door is off-screen
+        const isOffScreen = doorScreenX < -50 || doorScreenX > width + 50 ||
+                           doorScreenY < -50 || doorScreenY > height + 50;
+
+        if (isOffScreen) {
+            // Calculate angle from player to door
+            const dx = (door.x + door.w/2) - player.pos.x;
+            const dy = (door.y + door.h/2) - player.pos.y;
+            const angle = Math.atan2(dy, dx);
+
+            // Position indicator at screen edge
+            let indicatorX, indicatorY;
+
+            // Determine which edge of screen
+            if (Math.abs(dx) > Math.abs(dy)) {
+                // Left or right edge
+                indicatorX = dx > 0 ? width - margin : margin;
+                indicatorY = height / 2 + Math.tan(angle) * (dx > 0 ? (width - margin - width/2) : (margin - width/2));
+                indicatorY = Math.max(margin, Math.min(height - margin, indicatorY));
+            } else {
+                // Top or bottom edge
+                indicatorY = dy > 0 ? height - margin : margin;
+                indicatorX = width / 2 + (indicatorY - height/2) / Math.tan(angle);
+                indicatorX = Math.max(margin, Math.min(width - margin, indicatorX));
+            }
+
+            // Draw pulsing arrow indicator
+            ctx.save();
+            ctx.translate(indicatorX, indicatorY);
+            ctx.rotate(angle);
+
+            const pulse = 0.7 + Math.sin(gameTime * 5) * 0.3;
+
+            // Glow
+            ctx.fillStyle = `rgba(0, 255, 255, ${pulse * 0.4})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, indicatorSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Arrow
+            ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
+            ctx.beginPath();
+            ctx.moveTo(indicatorSize/2, 0);
+            ctx.lineTo(-indicatorSize/3, -indicatorSize/3);
+            ctx.lineTo(-indicatorSize/3, indicatorSize/3);
+            ctx.closePath();
+            ctx.fill();
+
+            // Border
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+    });
+}
+
+/**
  * Renders the entire game scene including background, entities, and UI.
  */
 function draw() {
@@ -3592,6 +3669,9 @@ function draw() {
         }
     });
     ctx.restore();
+
+    // Draw door indicators (arrows pointing to off-screen doors)
+    drawDoorIndicators(ctx);
 
     drawMiniMap(ctx);
 }
