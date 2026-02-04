@@ -662,6 +662,99 @@ const ROOM_TEMPLATES = {
         spawnArea: { x: 100, y: 100, w: 400, h: 400 },
         hasExit: true
     },
+    'pillar_hall': {
+        name: 'Pillar Hall',
+        width: 850, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 850, h: 20 },
+            { x: 0, y: 580, w: 850, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 830, y: 0, w: 20, h: 600 },
+            // Pillar obstacles - creates tactical cover
+            { x: 200, y: 150, w: 80, h: 80 },
+            { x: 570, y: 150, w: 80, h: 80 },
+            { x: 200, y: 370, w: 80, h: 80 },
+            { x: 570, y: 370, w: 80, h: 80 },
+            { x: 385, y: 260, w: 80, h: 80 }   // Center pillar
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 6,
+        spawnArea: { x: 50, y: 50, w: 750, h: 500 }
+    },
+    'narrow_zigzag': {
+        name: 'Winding Passage',
+        width: 900, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 900, h: 20 },
+            { x: 0, y: 580, w: 900, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 880, y: 0, w: 20, h: 600 },
+            // Zigzag walls create narrow passages
+            { x: 150, y: 0, w: 30, h: 350 },
+            { x: 400, y: 250, w: 30, h: 350 },
+            { x: 650, y: 0, w: 30, h: 350 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 5,
+        spawnArea: { x: 50, y: 50, w: 800, h: 500 }
+    },
+    'crossroads': {
+        name: 'Crossroads',
+        width: 750, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 750, h: 20 },
+            { x: 0, y: 580, w: 750, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 730, y: 0, w: 20, h: 600 },
+            // Cross-shaped dividers
+            { x: 0, y: 240, w: 250, h: 40 },
+            { x: 500, y: 240, w: 250, h: 40 },
+            { x: 335, y: 0, w: 80, h: 200 },
+            { x: 335, y: 400, w: 80, h: 200 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 6,
+        spawnArea: { x: 50, y: 50, w: 650, h: 500 }
+    },
+    'ambush_room': {
+        name: 'Ambush Chamber',
+        width: 800, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 800, h: 20 },
+            { x: 0, y: 580, w: 800, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 780, y: 0, w: 20, h: 600 },
+            // Corner alcoves for enemies to hide in
+            { x: 100, y: 100, w: 150, h: 30 },
+            { x: 100, y: 100, w: 30, h: 150 },
+            { x: 550, y: 100, w: 150, h: 30 },
+            { x: 670, y: 100, w: 30, h: 150 },
+            { x: 100, y: 470, w: 150, h: 30 },
+            { x: 100, y: 350, w: 30, h: 150 },
+            { x: 550, y: 470, w: 150, h: 30 },
+            { x: 670, y: 350, w: 30, h: 150 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 7,
+        spawnArea: { x: 50, y: 50, w: 700, h: 500 }
+    },
+    'gauntlet': {
+        name: 'The Gauntlet',
+        width: 1100, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 1100, h: 20 },
+            { x: 0, y: 580, w: 1100, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 1080, y: 0, w: 20, h: 600 },
+            // Staggered barriers to create chokepoints
+            { x: 250, y: 0, w: 40, h: 300 },
+            { x: 550, y: 300, w: 40, h: 300 },
+            { x: 850, y: 0, w: 40, h: 300 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 8,
+        spawnArea: { x: 50, y: 50, w: 1000, h: 500 }
+    },
     'safe_room': {
         name: 'The Prancing Princess',
         width: 800, height: 600,
@@ -1301,10 +1394,14 @@ function generateDungeon(floorNum) {
     // Book-accurate floor structure:
     // Entry → Combat Rooms → Safe Room (Pub) → [Boss on floor 3,6,9] → Stairwell
     const roomSequence = ['start'];
-    const combatRooms = ['small_square', 'long_corridor', 'L_shaped'];
+    const combatRooms = [
+        'small_square', 'long_corridor', 'L_shaped',
+        'pillar_hall', 'narrow_zigzag', 'crossroads',
+        'ambush_room', 'gauntlet'
+    ];
 
-    // Add 2-3 combat rooms based on floor
-    const numCombatRooms = 2 + Math.min(1, Math.floor(floorNum / 3));
+    // Add 2-4 combat rooms based on floor (more rooms on deeper floors)
+    const numCombatRooms = 2 + Math.min(2, Math.floor(floorNum / 2));
     for (let i = 0; i < numCombatRooms; i++) {
         roomSequence.push(combatRooms[Math.floor(Math.random() * combatRooms.length)]);
     }
@@ -1667,12 +1764,13 @@ class Enemy extends Entity {
         super(x, y, size, sprite);
         this.type = type; this.hp = hp; this.maxHp = hp; this.speed = speed; this.xpValue = xp;
         this.attackTimer = 0; this.hasTriggeredMordecai = false;
-        // New AI behaviors
-        this.aiState = 'lurking'; // lurking, stalking, attacking, fleeing
-        this.lurkTimer = 1.5 + Math.random() * 2; // Wait before engaging
+        // AI behaviors - start SLEEPING until player gets close
+        this.aiState = 'sleeping'; // sleeping, lurking, stalking, attacking
+        this.wakeRange = 250 + Math.random() * 100; // Wake up when player within this range
+        this.aggroRange = 150 + Math.random() * 50; // When to switch to full attack
         this.strafeDir = Math.random() < 0.5 ? 1 : -1; // Circle direction
         this.strafeTimer = 2 + Math.random() * 2; // How long to circle before rushing
-        this.aggroRange = 200 + Math.random() * 100; // When to switch to attack
+        this.sleepBob = Math.random() * Math.PI * 2; // Breathing animation offset
     }
     update(dt, player) {
         if (!player) return;
@@ -1723,20 +1821,39 @@ class Enemy extends Entity {
             return;
         }
 
-        // Bosses always aggressive
-        if (this.type === 'boss') {
+        // Bosses always aggressive (wake up immediately)
+        if (this.type === 'boss' && this.aiState === 'sleeping') {
             this.aiState = 'attacking';
         }
 
         // State machine for melee enemies
         switch(this.aiState) {
-            case 'lurking':
-                // Wait and watch - don't move yet
+            case 'sleeping':
+                // Dormant - waiting for player to get close
                 this.isMoving = false;
-                this.lurkTimer -= dt;
+                // Gentle breathing animation
+                this.sleepBob += dt * 2;
+                this.angle = Math.sin(this.sleepBob) * 0.05;
+                // ZZZ sleep indicator
+                if (Math.random() < 0.02) {
+                    effects.push(new TextFloater(this.pos.x + 20, this.pos.y - 30, 'Z', '#888'));
+                }
+                // Wake up when player gets close!
+                if (dist < this.wakeRange) {
+                    this.aiState = 'lurking';
+                    // Visual wake-up effect
+                    effects.push(new Effect(this.pos.x, this.pos.y, '❗', 50, 0.5));
+                    playSound('portal'); // Alert sound
+                }
+                break;
+
+            case 'lurking':
+                // Awake and aware - menacing posture but not attacking yet
+                this.isMoving = false;
                 // Menacing sway
-                this.angle = Math.sin(gameTime * 3 + this.bounceOffset) * 0.1;
-                if (this.lurkTimer <= 0 || dist < 150) {
+                this.angle = Math.sin(gameTime * 3 + this.bounceOffset) * 0.15;
+                // Get aggressive when player comes closer
+                if (dist < this.aggroRange) {
                     this.aiState = 'stalking';
                 }
                 break;
