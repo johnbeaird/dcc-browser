@@ -755,6 +755,106 @@ const ROOM_TEMPLATES = {
         spawns: 8,
         spawnArea: { x: 50, y: 50, w: 1000, h: 500 }
     },
+    'treasure_vault': {
+        name: 'Treasure Vault',
+        width: 800, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 800, h: 20 },
+            { x: 0, y: 580, w: 800, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 780, y: 0, w: 20, h: 600 },
+            // Shelf walls - loot spawns here
+            { x: 100, y: 80, w: 180, h: 40 },
+            { x: 520, y: 80, w: 180, h: 40 },
+            { x: 100, y: 480, w: 180, h: 40 },
+            { x: 520, y: 480, w: 180, h: 40 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 4,
+        spawnArea: { x: 50, y: 150, w: 700, h: 300 },
+        theme: 'treasure', // High mimic chance, extra loot
+        mimicChance: 0.5
+    },
+    'crypt': {
+        name: 'Ancient Crypt',
+        width: 850, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 850, h: 20 },
+            { x: 0, y: 580, w: 850, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 830, y: 0, w: 20, h: 600 },
+            // Coffins as obstacles
+            { x: 120, y: 120, w: 120, h: 60 },
+            { x: 610, y: 120, w: 120, h: 60 },
+            { x: 120, y: 420, w: 120, h: 60 },
+            { x: 610, y: 420, w: 120, h: 60 },
+            { x: 365, y: 270, w: 120, h: 60 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 6,
+        spawnArea: { x: 50, y: 50, w: 750, h: 500 },
+        theme: 'undead' // Spawns skeletons/ghosts
+    },
+    'throne_room': {
+        name: 'Throne Room',
+        width: 900, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 900, h: 20 },
+            { x: 0, y: 580, w: 900, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 880, y: 0, w: 20, h: 600 },
+            // Throne platform at far end
+            { x: 650, y: 200, w: 180, h: 200 },
+            // Side pillars
+            { x: 150, y: 150, w: 60, h: 60 },
+            { x: 150, y: 390, w: 60, h: 60 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }],
+        spawns: 5,
+        spawnArea: { x: 50, y: 50, w: 500, h: 500 },
+        theme: 'royal',
+        isBossRoom: true
+    },
+    'prison_block': {
+        name: 'Prison Cells',
+        width: 850, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 850, h: 20 },
+            { x: 0, y: 580, w: 850, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 830, y: 0, w: 20, h: 600 },
+            // Cell bars - create narrow corridors
+            { x: 150, y: 80, w: 20, h: 200 },
+            { x: 350, y: 80, w: 20, h: 200 },
+            { x: 550, y: 80, w: 20, h: 200 },
+            { x: 150, y: 320, w: 20, h: 200 },
+            { x: 350, y: 320, w: 20, h: 200 },
+            { x: 550, y: 320, w: 20, h: 200 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 7,
+        spawnArea: { x: 50, y: 50, w: 750, h: 500 }
+    },
+    'library': {
+        name: 'Forbidden Library',
+        width: 800, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 800, h: 20 },
+            { x: 0, y: 580, w: 800, h: 20 },
+            { x: 0, y: 0, w: 20, h: 600 },
+            { x: 780, y: 0, w: 20, h: 600 },
+            // Bookshelf maze
+            { x: 150, y: 100, w: 40, h: 200 },
+            { x: 400, y: 100, w: 40, h: 200 },
+            { x: 610, y: 100, w: 40, h: 200 },
+            { x: 150, y: 380, w: 40, h: 120 },
+            { x: 610, y: 380, w: 40, h: 120 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 5,
+        spawnArea: { x: 50, y: 50, w: 700, h: 500 },
+        lightRadius: 200 // Darker room
+    },
     'safe_room': {
         name: 'The Prancing Princess',
         width: 800, height: 600,
@@ -1219,13 +1319,6 @@ class Door {
         const centerX = this.x + this.w / 2;
         const centerY = this.y + this.h / 2;
 
-        // DEBUG: Draw trigger radius circle
-        ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 100, 0, Math.PI * 2);
-        ctx.stroke();
-
         if (this.active) {
             // Pulsing glow effect
             const pulse = 0.5 + Math.sin(gameTime * 4) * 0.5;
@@ -1397,7 +1490,8 @@ function generateDungeon(floorNum) {
     const combatRooms = [
         'small_square', 'long_corridor', 'L_shaped',
         'pillar_hall', 'narrow_zigzag', 'crossroads',
-        'ambush_room', 'gauntlet'
+        'ambush_room', 'gauntlet',
+        'treasure_vault', 'crypt', 'prison_block', 'library'
     ];
 
     // Add 2-4 combat rooms based on floor (more rooms on deeper floors)
@@ -1757,10 +1851,20 @@ class Donut extends Entity {
 class Enemy extends Entity {
     constructor(x, y, type) {
         let sprite = '👺', hp = 40, speed = 90, size = 45, xp = 10;
+        // Original enemies
         if (type === 'bat') { sprite = '🦇'; speed = 150; hp = 15; size = 30; xp = 5; }
         if (type === 'kobold') { sprite = '🦎'; speed = 75; hp = 30; size = 40; xp = 15; }
         if (type === 'boss') { sprite = '👹'; speed = 65; hp = 500; size = 100; xp = 200; }
         if (type === 'mimic') { sprite = '👾'; speed = 120; hp = 80; size = 40; xp = 50; }
+        // New enemy types
+        if (type === 'slime') { sprite = '🟢'; speed = 50; hp = 25; size = 40; xp = 8; }
+        if (type === 'skeleton') { sprite = '💀'; speed = 80; hp = 35; size = 45; xp = 20; }
+        if (type === 'spider') { sprite = '🕷️'; speed = 140; hp = 20; size = 35; xp = 12; }
+        if (type === 'ogre') { sprite = '🧌'; speed = 50; hp = 150; size = 80; xp = 50; }
+        if (type === 'ghost') { sprite = '👻'; speed = 100; hp = 30; size = 40; xp = 25; }
+        if (type === 'assassin') { sprite = '🗡️'; speed = 130; hp = 25; size = 40; xp = 30; }
+        if (type === 'shaman') { sprite = '🔮'; speed = 60; hp = 20; size = 45; xp = 35; }
+        if (type === 'hound') { sprite = '🐕'; speed = 140; hp = 30; size = 35; xp = 15; }
         super(x, y, size, sprite);
         this.type = type; this.hp = hp; this.maxHp = hp; this.speed = speed; this.xpValue = xp;
         this.attackTimer = 0; this.hasTriggeredMordecai = false;
@@ -1821,12 +1925,200 @@ class Enemy extends Entity {
             return;
         }
 
+        // Slime - slow but splits when killed
+        if (this.type === 'slime') {
+            this.isMoving = true;
+            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            // Slime jiggle animation
+            this.angle = Math.sin(gameTime * 10) * 0.2;
+            if (dist < (this.size + player.size)/2) {
+                if (playerGraceTimer <= 0) player.takeDamage(8);
+                this.stunned = 0.5;
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Spider - fast, leaves webs
+        if (this.type === 'spider') {
+            this.isMoving = true;
+            // Quick darting movements
+            if (!this.dashTimer) this.dashTimer = 0;
+            this.dashTimer -= dt;
+            if (this.dashTimer <= 0) {
+                // Quick dash toward player
+                this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * 2 * dt));
+                this.dashTimer = 2 + Math.random();
+                // Leave web trap occasionally
+                if (Math.random() < 0.1) {
+                    effects.push(new Trap(this.pos.x, this.pos.y, true)); // isWeb = true
+                }
+            }
+            if (dist < (this.size + player.size)/2) {
+                if (playerGraceTimer <= 0) player.takeDamage(6);
+                this.stunned = 0.3;
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Ogre - slow tank, throws rocks
+        if (this.type === 'ogre') {
+            if (dist > 300) {
+                this.isMoving = true;
+                this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            } else {
+                this.isMoving = false;
+                this.attackTimer -= dt;
+                if (this.attackTimer <= 0) {
+                    this.attackTimer = 4.0;
+                    // Throw rock
+                    projectiles.push(new Arrow(this.pos.x, this.pos.y, diff.normalize(), 20, '🪨'));
+                }
+            }
+            if (dist < (this.size + player.size)/2) {
+                if (playerGraceTimer <= 0) player.takeDamage(20);
+                this.stunned = 1.0;
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Ghost - phases through walls, teleports
+        if (this.type === 'ghost') {
+            this.isMoving = true;
+            // Float toward player, ignore walls
+            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            // Ethereal wobble
+            this.angle = Math.sin(gameTime * 4) * 0.2;
+            // Teleport occasionally when far
+            if (!this.teleportCooldown) this.teleportCooldown = 0;
+            this.teleportCooldown -= dt;
+            if (dist > 400 && this.teleportCooldown <= 0) {
+                // Teleport closer to player
+                const teleportDist = 150;
+                this.pos = new Vector2(
+                    player.pos.x - diff.normalize().x * teleportDist,
+                    player.pos.y - diff.normalize().y * teleportDist
+                );
+                effects.push(new Effect(this.pos.x, this.pos.y, '💨', 60, 0.5));
+                this.teleportCooldown = 5;
+            }
+            if (dist < (this.size + player.size)/2) {
+                if (playerGraceTimer <= 0) player.takeDamage(12);
+                this.stunned = 0.3;
+            }
+            this.facingLeft = diff.x < 0;
+            // Ghosts don't collide with walls!
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Hound - pack hunter, calls for help
+        if (this.type === 'hound') {
+            this.isMoving = true;
+            // Fast aggressive chase
+            this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            // Howl to wake nearby enemies
+            if (!this.howlCooldown) this.howlCooldown = 0;
+            this.howlCooldown -= dt;
+            if (this.howlCooldown <= 0 && dist < 300) {
+                this.howlCooldown = 8;
+                // Wake nearby sleeping enemies
+                enemies.forEach(e => {
+                    if (e !== this && e.aiState === 'sleeping' && e.pos.dist(this.pos) < 400) {
+                        e.aiState = 'attacking';
+                        effects.push(new Effect(e.pos.x, e.pos.y, '❗', 50, 0.5));
+                    }
+                });
+                playSound('portal');
+            }
+            if (dist < (this.size + player.size)/2) {
+                if (playerGraceTimer <= 0) player.takeDamage(8);
+                this.stunned = 0.4;
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Shaman - stays back, buffs allies, ranged magic
+        if (this.type === 'shaman') {
+            // Keep distance from player
+            if (dist < 300) {
+                this.isMoving = true;
+                this.pos = this.pos.sub(diff.normalize().scale(effectiveSpeed * 0.8 * dt));
+            } else {
+                this.isMoving = false;
+            }
+            // Cast buff on nearby allies
+            if (!this.buffCooldown) this.buffCooldown = 0;
+            this.buffCooldown -= dt;
+            if (this.buffCooldown <= 0) {
+                this.buffCooldown = 6;
+                enemies.forEach(e => {
+                    if (e !== this && e.pos.dist(this.pos) < 250 && e.type !== 'shaman') {
+                        // Speed buff
+                        if (!e.buffedSpeed) {
+                            e.speed *= 1.3;
+                            e.buffedSpeed = true;
+                            effects.push(new Effect(e.pos.x, e.pos.y, '✨', 40, 1));
+                        }
+                    }
+                });
+            }
+            // Magic missile attack
+            this.attackTimer -= dt;
+            if (this.attackTimer <= 0 && dist < 500) {
+                this.attackTimer = 3.0;
+                projectiles.push(new MagicMissile(this.pos.x, this.pos.y, player, 0));
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Assassin - fast, tries to get behind player for backstab
+        if (this.type === 'assassin') {
+            this.isMoving = true;
+            // Try to circle behind player
+            const behindPlayer = new Vector2(-diff.x, -diff.y).normalize();
+            const circleDir = new Vector2(-diff.y, diff.x).normalize();
+            const moveDir = behindPlayer.add(circleDir).normalize();
+            this.pos = this.pos.add(moveDir.scale(effectiveSpeed * dt));
+            // Check for backstab
+            if (dist < (this.size + player.size)/2) {
+                // Backstab bonus if approaching from behind
+                const playerFacing = player.facingLeft ? -1 : 1;
+                const assassinSide = diff.x > 0 ? 1 : -1;
+                const backstab = playerFacing === assassinSide;
+                const damage = backstab ? 25 : 12;
+                if (playerGraceTimer <= 0) {
+                    player.takeDamage(damage);
+                    if (backstab) effects.push(new Effect(player.pos.x, player.pos.y, '💀', 70, 0.8));
+                }
+                this.stunned = 0.5;
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
         // Bosses always aggressive (wake up immediately)
         if (this.type === 'boss' && this.aiState === 'sleeping') {
             this.aiState = 'attacking';
         }
 
-        // State machine for melee enemies
+        // State machine for basic melee enemies (goblins, skeletons)
         switch(this.aiState) {
             case 'sleeping':
                 // Dormant - waiting for player to get close
@@ -1908,7 +2200,35 @@ class Enemy extends Entity {
             floorStats.kills++; // Track kills for recap
             ui.score.innerText = `SCORE: ${score}`; ui.viewers.innerText = `${viewers} Viewers`;
             if (player) player.gainXp(this.xpValue);
-            
+
+            // Special death behaviors
+            if (this.type === 'slime' && this.size > 25) {
+                // Slime splits into 2 smaller slimes
+                const newSize = this.size * 0.6;
+                const offset = 30;
+                const slime1 = new Enemy(this.pos.x + offset, this.pos.y, 'slime');
+                const slime2 = new Enemy(this.pos.x - offset, this.pos.y, 'slime');
+                slime1.size = newSize; slime1.hp = Math.floor(this.maxHp * 0.5); slime1.maxHp = Math.floor(this.maxHp * 0.5);
+                slime2.size = newSize; slime2.hp = Math.floor(this.maxHp * 0.5); slime2.maxHp = Math.floor(this.maxHp * 0.5);
+                enemies.push(slime1, slime2);
+                effects.push(new Effect(this.pos.x, this.pos.y, '💚', 80, 0.6));
+            }
+
+            if (this.type === 'skeleton' && !this.hasRevived) {
+                // Skeleton revives after 3 seconds
+                this.hasRevived = true;
+                const skeletonPos = new Vector2(this.pos.x, this.pos.y);
+                setTimeout(() => {
+                    if (getCurrentRoom()) {
+                        const revived = new Enemy(skeletonPos.x, skeletonPos.y, 'skeleton');
+                        revived.hasRevived = true; revived.hp = Math.floor(revived.maxHp * 0.5); revived.aiState = 'attacking';
+                        enemies.push(revived);
+                        effects.push(new Effect(skeletonPos.x, skeletonPos.y, '☠️', 100, 1));
+                        playSound('portal');
+                    }
+                }, 3000);
+            }
+
             if (this.type === 'boss') { achievementState.bossKilled = true; checkAchievements(); }
 
             if (isSmush) { 
@@ -1925,7 +2245,7 @@ class Enemy extends Entity {
 
 class Projectile extends Entity { constructor(x, y, size, icon, lifetime) { super(x, y, size, icon); this.lifetime = lifetime; this.glow = true; } update(dt) { this.lifetime -= dt; if (this.lifetime <= 0) this.dead = true; } }
 class MagicMissile extends Projectile { constructor(x, y, target, charm) { super(x, y, 15, '✨', 2); this.target = target; this.charm = charm; this.glowColor = '#ff00ff'; } update(dt) { super.update(dt); if(Math.random()<0.5) effects.push(new Particle(this.pos.x, this.pos.y, '#ff00ff', 2, 20)); if (this.target && !this.target.dead) { let dir = this.target.pos.sub(this.pos).normalize(); this.pos = this.pos.add(dir.scale(500 * dt)); if (this.pos.dist(this.target.pos) < 20) { this.target.takeDamage(20, false); if (Math.random() < this.charm) this.target.stunned = 3.0; this.target = null; this.dead = true; } } else { this.target = null; this.dead = true; } } }
-class Arrow extends Projectile { constructor(x, y, dir) { super(x, y, 20, '🗡️', 3); this.dir = dir; this.angle = Math.atan2(dir.y, dir.x); this.glowColor = '#fff'; } update(dt) { super.update(dt); this.pos = this.pos.add(this.dir.scale(350 * dt)); if (player && this.pos.dist(player.pos) < 20) { if (playerGraceTimer <= 0) player.takeDamage(15); this.dead = true; } } }
+class Arrow extends Projectile { constructor(x, y, dir, damage = 15, sprite = '🗡️') { super(x, y, 20, sprite, 3); this.dir = dir; this.damage = damage; this.angle = Math.atan2(dir.y, dir.x); this.glowColor = '#fff'; } update(dt) { super.update(dt); this.pos = this.pos.add(this.dir.scale(350 * dt)); if (player && this.pos.dist(player.pos) < 20) { if (playerGraceTimer <= 0) player.takeDamage(this.damage); this.dead = true; } } }
 class Bomb extends Projectile { constructor(x, y) { super(x, y, 30, '💣', 2); this.timer = 0; this.glowColor = '#ffaa00'; } update(dt) { super.update(dt); this.timer += dt * 10; this.size = 30 + Math.sin(this.timer) * 5; if (this.lifetime <= 0) { effects.push(new Effect(this.pos.x, this.pos.y, '💥', 200, 0.5)); playSound('explode'); screenshake = 15; enemies.forEach(e => { if (e.pos.dist(this.pos) < 180) e.takeDamage(100, true); }); this.dead = true; for(let i=0; i<20; i++) effects.push(new Particle(this.pos.x, this.pos.y, '#ffaa00', 6, 200)); } } }
 class Trap extends Entity { constructor(x, y) { super(x, y, 40, '🕸️'); this.life = 15; } update(dt) { this.life -= dt; if (this.life < 0) this.dead = true; enemies.forEach(e => { if (e.pos.dist(this.pos) < 40 && e.stunned <= 0) { e.stunned = 4.0; effects.push(new TextFloater(e.pos.x, e.pos.y - 40, "TRAPPED", "#ccc")); this.dead = true; } }); } }
 // Modified LootBox: Can be a box (for safe room) OR a loose resource (for immediate use)
@@ -2625,17 +2945,6 @@ function draw() {
             ctx.fill();
         }
     });
-    ctx.restore();
-
-    // DEBUG: Show player position and enemy count
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, height - 80, 300, 70);
-    ctx.fillStyle = '#0f0';
-    ctx.font = '14px monospace';
-    ctx.fillText(`Player: (${player.pos.x.toFixed(0)}, ${player.pos.y.toFixed(0)})`, 15, height - 60);
-    ctx.fillText(`Room: ${currentRoomIndex} | Enemies: ${enemies.length}`, 15, height - 40);
-    ctx.fillText(`Cooldown: ${roomTransitionCooldown.toFixed(2)}s`, 15, height - 20);
     ctx.restore();
 
     drawMiniMap(ctx);
