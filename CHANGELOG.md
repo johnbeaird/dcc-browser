@@ -27,12 +27,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Necromancer 🧙 (Floor 6+) - Summons skeleton minions, dark magic ranged attacks
   - Drake 🐉 (Floor 7+) - Flying enemy that ignores walls, cone fire breath attack
   - Banshee 👰‍♀️ (Floor 7+) - Screams to stun player, phases through walls
+- **Boss System Overhaul**:
+  - Boss encounters on EVERY floor (previously only floors 3, 6, 9)
+  - Mini-bosses on floors 1, 2, 4, 5, 7, 8 (elite enemies or multiple tough foes)
+  - Major bosses on floors 3, 6, 9 with elite guard spawns
+  - Boss room variety: Arena, Throne Room, Cathedral, Arena of Peril (randomly selected)
+  - Early floor "Challenge Rooms" with multiple enemies
 
 ### Changed
 - Total enemy types expanded from 13 to 19
 - Total room templates expanded from 17 to 23
+- All 6 new complex rooms added to combat room rotation pool
 - Progressive enemy unlock system: new enemies appear on higher floors (5-7)
 - Enemy variety scales with floor depth for increased difficulty curve
+- Boss difficulty scales with floor number
 
 ## [0.3.0] - 2026-02-03 - "The Awakening"
 

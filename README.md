@@ -4,7 +4,7 @@
 
 A browser-based dungeon crawler game inspired by the web novel series "Dungeon Crawler Carl" by Matt Dinniman. This game is built using HTML5 Canvas, CSS, and vanilla JavaScript.
 
-> 🎮 **Latest Update**: Katia NPC rival crawler, 6 complex room templates, and 6 new high-tier enemies!
+> 🎮 **Latest Update**: Boss fights on EVERY floor! Plus Katia NPC, 6 complex room templates, and 6 new high-tier enemies!
 
 ## How to Run
 
@@ -21,6 +21,7 @@ Players control Carl and his cat Donut as they navigate through procedurally gen
 
 - **Procedural room-based dungeons** with 23 unique layouts
 - **19 enemy types** with unique AI behaviors and mechanics
+- **Boss fights on EVERY floor** - Mini-bosses, major bosses, and challenge rooms
 - **Proximity-based AI** - enemies sleep until you get close
 - **Katia NPC** - Rival crawler who appears randomly, provides buffs and fights alongside you
 - **Themed rooms** - Cathedral, Chasm Bridge, Labyrinth, Treasure Vault, Crypt, Throne Room, Library, Prison

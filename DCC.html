@@ -1661,13 +1661,15 @@ function generateDungeon(floorNum) {
     };
 
     // Book-accurate floor structure:
-    // Entry → Combat Rooms → Safe Room (Pub) → [Boss on floor 3,6,9] → Stairwell
+    // Entry → Combat Rooms → Safe Room (Pub) → Boss (every floor!) → Stairwell
     const roomSequence = ['start'];
     const combatRooms = [
         'small_square', 'long_corridor', 'L_shaped',
         'pillar_hall', 'narrow_zigzag', 'crossroads',
         'ambush_room', 'gauntlet',
-        'treasure_vault', 'crypt', 'prison_block', 'library'
+        'treasure_vault', 'crypt', 'prison_block', 'library',
+        // v0.4.0 complex rooms
+        'cathedral', 'chasm_bridge', 'labyrinth', 'trapped_arena', 'vertical_shaft', 'collapsed_tunnel'
     ];
 
     // Add 2-4 combat rooms based on floor (more rooms on deeper floors)
@@ -1679,13 +1681,26 @@ function generateDungeon(floorNum) {
     // Safe Room (The Prancing Princess) - always present
     roomSequence.push('safe_room');
 
-    // Boss room on floors 3, 6, 9 (end of each act)
+    // Boss room on EVERY floor with variety
+    // Floors 1-2: Mini-boss rooms (smaller templates)
+    // Floors 3+: Full boss rooms (larger templates)
+    const bossRooms = ['arena', 'throne_room', 'cathedral', 'trapped_arena'];
+    const miniBossRooms = ['small_square', 'crossroads', 'pillar_hall'];
+
     if (floorNum % 3 === 0) {
-        roomSequence.push('arena');
+        // Major boss every 3rd floor (end of act)
+        roomSequence.push(bossRooms[Math.floor(Math.random() * bossRooms.length)]);
+    } else {
+        // Mini-boss on other floors
+        roomSequence.push(miniBossRooms[Math.floor(Math.random() * miniBossRooms.length)]);
     }
 
     // Stairwell chamber (exit)
     roomSequence.push('exit');
+
+    // Track which index is the boss room (before exit)
+    const bossRoomIndex = roomSequence.length - 2; // Second to last room (before exit)
+    const isMajorBossFloor = (floorNum % 3 === 0);
 
     // Place rooms in a line - all rooms now have same height (600px)
     let currentX = 0;
@@ -1695,8 +1710,16 @@ function generateDungeon(floorNum) {
         const template = ROOM_TEMPLATES[templateName];
         const room = new Room(template, index, currentX, currentY);
 
-        // Apply random modifier (30% chance, not on start room)
-        if (index > 0 && Math.random() < 0.3) {
+        // Mark boss/mini-boss rooms
+        if (index === bossRoomIndex) {
+            if (!isMajorBossFloor) {
+                room.isMiniBossRoom = true;
+            }
+            // Major boss rooms are already marked via template.isBossRoom
+        }
+
+        // Apply random modifier (30% chance, not on start room or boss rooms)
+        if (index > 0 && index !== bossRoomIndex && Math.random() < 0.3) {
             const modKeys = Object.keys(ROOM_MODIFIERS).filter(k => k !== 'none');
             room.modifier = modKeys[Math.floor(Math.random() * modKeys.length)];
             ROOM_MODIFIERS[room.modifier].apply(room);
@@ -1809,10 +1832,60 @@ function transitionToRoom(roomIndex) {
             enemies.push(new Enemy(spawnPos.x, spawnPos.y, type));
         }
 
-        if (room.template.isBossRoom) {
+        if (room.template.isBossRoom || room.isMiniBossRoom) {
             const bossPos = room.getCenter();
-            enemies.push(new Enemy(bossPos.x, bossPos.y, 'boss'));
-            showAnnouncement("BOSS ROOM", "PREPARE FOR BATTLE", "#ff0000", "boss");
+
+            // Determine boss type based on floor
+            let bossType = 'boss';
+            let bossTitle = "BOSS ROOM";
+
+            if (floor % 3 === 0) {
+                // Major boss on floors 3, 6, 9
+                bossType = 'boss';
+                bossTitle = "MAJOR BOSS";
+                // Spawn boss with some elite guards
+                enemies.push(new Enemy(bossPos.x, bossPos.y, bossType));
+                // Add 2-3 elite enemies
+                for (let i = 0; i < 2 + Math.floor(floor / 3); i++) {
+                    const offset = new Vector2(
+                        (Math.random() - 0.5) * 200,
+                        (Math.random() - 0.5) * 200
+                    );
+                    const guardPos = bossPos.add(offset);
+                    const eliteTypes = ['ogre', 'ghost', 'assassin', 'shaman', 'wraith', 'golem'];
+                    const guardType = eliteTypes[Math.floor(Math.random() * eliteTypes.length)];
+                    enemies.push(new Enemy(guardPos.x, guardPos.y, guardType));
+                }
+            } else {
+                // Mini-boss on floors 1, 2, 4, 5, 7, 8
+                bossTitle = "MINI-BOSS";
+                // Mini-boss is just a tougher elite enemy
+                const miniBossTypes = ['ogre', 'golem', 'necromancer'];
+                if (floor >= 5) {
+                    bossType = miniBossTypes[Math.floor(Math.random() * miniBossTypes.length)];
+                } else if (floor >= 3) {
+                    bossType = 'ogre';
+                } else {
+                    // Early floors - multiple regular enemies
+                    for (let i = 0; i < 3; i++) {
+                        const offset = new Vector2(
+                            (Math.random() - 0.5) * 150,
+                            (Math.random() - 0.5) * 150
+                        );
+                        const enemyPos = bossPos.add(offset);
+                        const types = ['kobold', 'skeleton', 'spider'];
+                        const enemyType = types[Math.floor(Math.random() * types.length)];
+                        enemies.push(new Enemy(enemyPos.x, enemyPos.y, enemyType));
+                    }
+                    bossTitle = "CHALLENGE ROOM";
+                }
+
+                if (floor >= 3) {
+                    enemies.push(new Enemy(bossPos.x, bossPos.y, bossType));
+                }
+            }
+
+            showAnnouncement(bossTitle, "PREPARE FOR BATTLE", "#ff0000", "boss");
         }
     }
 
