@@ -1596,8 +1596,10 @@ class Player extends Entity {
                 }
             }
         }
-        // Position limit - safety clamp to prevent infinite coordinates
-        const limit = 2000;
+        // Position limit - Calculate based on dungeon size
+        // With 5+ rooms of ~800px width each, we need at least 5000px
+        // Using 10000 as safe upper bound
+        const limit = 10000;
         this.pos = new Vector2(
             Math.max(-limit, Math.min(limit, this.pos.x)),
             Math.max(-limit, Math.min(limit, this.pos.y))
