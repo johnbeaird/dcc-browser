@@ -1,0 +1,19 @@
+# Claude Code project files
+.claude/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup and temporary files
+*.bak
+*.tmp
+*~
+
+# Archive folder (old versions)
+archive/

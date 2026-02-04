@@ -1,0 +1,2585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dungeon Crawler Carl: The System AI Update</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'VT323', monospace;
+            touch-action: none; 
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        #crt-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none; z-index: 50;
+        }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+            z-index: 60;
+        }
+
+        /* HUD */
+        .hud-top {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding: 15px 30px; color: #0f0; text-shadow: 0 0 5px #0f0; font-size: 32px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent); pointer-events: auto; 
+        }
+
+        .hud-right {
+            text-align: right;
+            margin-right: 170px; /* Space for larger Mini-Map */
+        }
+
+        .health-bar-wrap { width: 300px; height: 30px; background: #111; border: 3px solid #333; position: relative; box-shadow: 0 0 5px #d00; }
+        .xp-bar-wrap { width: 300px; height: 10px; background: #111; border: 1px solid #333; margin-top: 5px; }
+        #health-bar-fill { width: 100%; height: 100%; background: #d00; transition: width 0.1s; }
+        #xp-bar-fill { width: 0%; height: 100%; background: #00d; transition: width 0.2s; box-shadow: 0 0 5px #00d; }
+        
+        #guild-tag {
+            font-size: 24px; color: #d4af37; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 5px #d4af37; font-weight: bold;
+        }
+
+        /* Timer */
+        #timer-container { text-align: center; position: absolute; top: 15px; left: 50%; transform: translateX(-50%); }
+        #timer-label { font-size: 20px; color: #888; letter-spacing: 2px; }
+        #timer-display { font-size: 50px; color: #f00; font-weight: bold; text-shadow: 0 0 15px #f00; font-family: 'Courier New', monospace; }
+
+        /* Boss Bar */
+        #boss-bar-container {
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            width: 60%; height: 30px; display: none;
+            border: 3px solid #fff; background: #220000; z-index: 70;
+        }
+        #boss-bar-fill { width: 100%; height: 100%; background: #ff0000; transition: width 0.1s; }
+        #boss-name { position: absolute; top: -25px; left: 0; color: #fff; font-size: 24px; font-weight: bold; text-shadow: 0 0 5px #f00; width: 100%; text-align: center; }
+
+        /* TV Overlay */
+        #tv-overlay { position: absolute; top: 100px; right: 20px; width: 350px; height: 400px; display: flex; flex-direction: column; pointer-events: none; }
+        #viewer-count { color: #f00; font-weight: bold; text-align: right; margin-bottom: 5px; text-shadow: 0 0 5px #f00; font-size: 28px; }
+        #viewer-count::before { content: "● LIVE "; font-size: 18px; animation: blink 2s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        #chat-feed {
+            flex-grow: 1; 
+            background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0, 0, 0, 0.8) 40%);
+            border-left: 0px solid rgba(255, 255, 255, 0.2);
+            padding: 15px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+            font-size: 26px; 
+        }
+        .chat-msg { margin-bottom: 8px; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+        .user-name { font-weight: bold; color: #aaa; } .user-mod { color: #d4af37; text-shadow: 0 0 5px #d4af37; } .msg-text { color: #fff; }
+
+        /* Inventory */
+        #inventory-bar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+        .inv-slot {
+            width: 60px; height: 60px; background: rgba(0,0,0,0.8); border: 2px solid #555;
+            display: flex; align-items: center; justify-content: center; font-size: 30px; color: white; position: relative; cursor: pointer;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5); transition: transform 0.1s, border-color 0.1s;
+        }
+        .inv-slot:active { transform: scale(0.95); }
+        .inv-key { position: absolute; top: 2px; left: 4px; font-size: 12px; color: #aaa; }
+        .inv-count { position: absolute; bottom: 2px; right: 4px; font-size: 16px; color: #fff; font-weight: bold; }
+
+        /* System Log */
+        #system-log {
+            position: absolute; bottom: 120px; left: 20px; width: 450px; height: 250px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0, 0, 0, 0.9) 60%);
+            border-left: 0px solid #0f0;
+            padding: 15px; overflow-y: hidden; display: flex; flex-direction: column; justify-content: flex-end;
+            font-size: 28px; color: #fff; pointer-events: none; font-weight: bold;
+        }
+        .log-entry { margin-bottom: 8px; line-height: 1.2; word-wrap: break-word; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+        .log-achievement { color: #ff0; font-weight: bold; text-shadow: 0 0 5px #ff0; }
+        .log-system { color: #0f0; } .log-loot { color: #faa; }
+        .log-party-carl { color: #00ccff; font-weight: bold; } .log-party-donut { color: #ff99cc; font-weight: bold; }
+        .log-mordecai { color: #ffa500; font-style: italic; border-left: 3px solid #ffa500; padding-left: 5px; background: rgba(50, 20, 0, 0.8); }
+
+        /* ANNOUNCEMENT BANNER */
+        #announcement-overlay {
+            position: absolute; top: 10%; left: 0; width: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            pointer-events: none; z-index: 200; background: rgba(0, 0, 0, 0.85); padding: 10px 0;
+            border-top: 3px solid #ff0000; border-bottom: 3px solid #ff0000;
+            transform: scaleY(0); transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transform-origin: center; box-shadow: 0 0 50px rgba(255, 0, 0, 0.3);
+        }
+        #announcement-overlay.active { transform: scaleY(1); }
+        #ann-main {
+            font-family: 'Black Ops One', cursive; font-size: 75px; color: #fff;
+            text-transform: uppercase; text-align: center; line-height: 0.9;
+            text-shadow: 0 0 20px #f00, 0 0 40px #f00, 3px 3px 0 #000;
+        }
+        #ann-sub {
+            font-family: 'VT323', monospace; font-size: 45px; color: #ffaa00;
+            text-shadow: 0 0 10px #000, 2px 2px 0 #000; margin-top: 5px;
+            text-transform: uppercase; letter-spacing: 4px; background: rgba(255, 0, 0, 0.3);
+            padding: 2px 30px; border-radius: 5px;
+        }
+        #ann-quote {
+            font-family: 'VT323', monospace; font-size: 40px; margin-top: 20px;
+            background: rgba(0,0,0,0.9); padding: 15px 30px; border: 2px solid #555;
+            border-radius: 8px; max-width: 90%; text-align: center; font-style: italic;
+            display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            animation: float 2s infinite ease-in-out; line-height: 1;
+        }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-5px); } 100% { transform: translateY(0px); } }
+
+        /* PARTY BANTER OVERLAY */
+        #party-overlay {
+            position: absolute; bottom: 120px; right: 20px; width: auto; left: auto;
+            display: flex; flex-direction: column; align-items: flex-end;
+            pointer-events: none; z-index: 190;
+            transform-origin: bottom right; transform: scale(0); 
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #party-overlay.active { transform: scale(1); }
+        #party-box {
+            background: rgba(0, 0, 0, 0.9); border: 4px solid #fff; padding: 15px 30px;
+            border-radius: 12px; text-align: right; box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            max-width: 450px; margin-right: 10px;
+        }
+        #party-name {
+            font-family: 'Black Ops One', cursive; font-size: 40px; margin-bottom: 5px;
+            text-shadow: 2px 2px 0 #000; line-height: 1;
+        }
+        #party-text {
+            font-family: 'VT323', monospace; font-size: 35px; color: #fff;
+            text-shadow: 1px 1px 0 #000; line-height: 1.1;
+        }
+
+        /* Mobile Controls */
+        #mobile-controls { position: absolute; bottom: 20px; left: 20px; right: 20px; height: 150px; display: none; pointer-events: none; }
+        .joystick-zone { position: absolute; bottom: 0; left: 0; width: 150px; height: 150px; pointer-events: auto; }
+        .action-btn {
+            position: absolute; bottom: 30px; right: 10px; width: 90px; height: 90px;
+            background: rgba(200, 50, 50, 0.4); border: 3px solid rgba(255, 100, 100, 0.8); border-radius: 50%;
+            color: white; display: flex; align-items: center; justify-content: center;
+            font-size: 24px; pointer-events: auto; user-select: none; box-shadow: 0 0 15px rgba(255, 0, 0, 0.3);
+        }
+        .action-btn:active { background: rgba(255, 0, 0, 0.6); transform: scale(0.95); }
+
+        /* Screens */
+        .screen-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100;
+            pointer-events: auto; text-align: center; color: #0f0;
+        }
+        
+        /* Stats Screen */
+        #char-sheet-container {
+            background: rgba(0, 10, 0, 0.95); border: 4px solid #00ccff; padding: 30px;
+            width: 80%; max-width: 600px; box-shadow: 0 0 50px rgba(0, 204, 255, 0.3); border-radius: 8px;
+            display: flex; flex-direction: column; gap: 20px; text-align: left;
+        }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; font-size: 28px; border-bottom: 1px solid #333; padding: 5px 0; }
+        .stat-name { color: #00ccff; }
+        .stat-val { color: #fff; font-weight: bold; }
+        .stat-desc { font-size: 18px; color: #888; }
+        
+        #safe-room-screen { background: radial-gradient(circle, #3a2a1a 0%, #000 90%); }
+        .safe-room-panel {
+            background: rgba(20, 10, 5, 0.95); border: 4px solid #b8860b; padding: 40px;
+            max-width: 800px; width: 90%; max-height: 85vh; overflow-y: auto; /* Add scroll for vertical overflow */
+            box-shadow: 0 0 80px rgba(184, 134, 11, 0.3); border-radius: 10px;
+        }
+        .mordecai-avatar { font-size: 60px; margin-bottom: 10px; filter: drop-shadow(0 0 10px #b8860b); }
+        .mordecai-text {
+            color: #eec; font-style: italic; margin: 20px 0; font-size: 24px;
+            border-left: 4px solid #b8860b; padding-left: 20px; text-align: left;
+            background: rgba(0,0,0,0.4); padding: 15px; border-radius: 0 10px 10px 0;
+        }
+        
+        /* Class Select */
+        #class-select-container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+        .class-card {
+            background: #111; border: 2px solid #555; padding: 20px; width: 200px;
+            cursor: pointer; transition: all 0.2s; color: #fff;
+        }
+        .class-card:hover { transform: scale(1.1); border-color: #00ccff; box-shadow: 0 0 20px #00ccff; }
+        .class-title { font-size: 24px; color: #00ccff; margin-bottom: 10px; font-weight: bold; }
+        .class-desc { font-size: 16px; color: #aaa; }
+
+        #guild-panel, #loot-panel { margin-top: 20px; border-top: 2px solid #555; padding-top: 20px; width: 100%; }
+        #guild-input { font-family: 'VT323', monospace; font-size: 24px; padding: 5px; width: 60%; background: #000; color: #fff; border: 1px solid #0f0; }
+        
+        /* UPDATED LOOT RESULTS STYLE */
+        #loot-results { 
+            height: 220px; /* Fixed height to prevent layout jump */
+            overflow: hidden; 
+            text-align: center; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.85); 
+            padding: 20px; 
+            font-size: 34px;
+            border: 2px solid #555; 
+            font-family: 'VT323', monospace;
+            text-shadow: 2px 2px 0 #000;
+            line-height: 1.2;
+            margin-top: 15px;
+        }
+        
+        .loot-reveal-item {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .loot-icon { font-size: 80px; margin-bottom: 10px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
+        .loot-name { font-family: 'Black Ops One', cursive; font-size: 40px; margin-bottom: 5px; text-transform: uppercase; }
+        .loot-type { font-family: 'VT323', monospace; font-size: 28px; color: #aaa; }
+        
+        @keyframes popIn {
+             0% { transform: scale(0); opacity: 0; }
+             70% { transform: scale(1.1); opacity: 1; }
+             100% { transform: scale(1); }
+        }
+
+        .btn {
+            margin-top: 15px; padding: 12px 35px; font-family: 'VT323', monospace;
+            font-size: 28px; background: #000; color: #0f0; border: 2px solid #0f0;
+            cursor: pointer; text-transform: uppercase; box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+            display: inline-block; transition: all 0.2s;
+        }
+        .btn:hover { background: #0f0; color: #000; box-shadow: 0 0 25px rgba(0, 255, 0, 0.8); transform: scale(1.05); }
+        .btn:disabled { border-color: #444; color: #444; cursor: not-allowed; background: #111; box-shadow: none; transform: none; }
+
+        /* Level Up Styling */
+        @keyframes pulse-gold { 0% { text-shadow: 0 0 20px #ffaa00; transform: scale(1); } 50% { text-shadow: 0 0 50px #ffaa00; transform: scale(1.05); } 100% { text-shadow: 0 0 20px #ffaa00; transform: scale(1); } }
+        .level-up-title { font-size: 90px; color: #ffaa00; animation: pulse-gold 2s infinite; font-family: 'Black Ops One', cursive; }
+        
+        #class-select-container, #upgrade-options { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 20px; }
+        .upgrade-card {
+            background: #111; border: 2px solid #555; padding: 20px; width: 220px;
+            cursor: pointer; transition: all 0.2s; color: #fff;
+        }
+        .upgrade-card:hover { transform: scale(1.1); border-color: #00ccff; box-shadow: 0 0 20px #00ccff; background: #222; }
+        .upgrade-title { font-size: 26px; color: #00ccff; margin-bottom: 10px; font-weight: bold; }
+        .upgrade-desc { font-size: 18px; color: #aaa; }
+
+        .hidden { display: none !important; }
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="crt-overlay"></div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="bar-container">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div>CARL <span id="class-display" style="color:#00ccff"></span> <span id="lvl-display-small" style="font-size: 0.8em; color: #aaa;">(Lvl 1)</span></div>
+                    <button class="btn" style="padding: 2px 10px; font-size: 18px; margin-top:0;" onclick="toggleStats()">STATS (C)</button>
+                </div>
+                <div id="guild-tag"></div>
+                <div class="health-bar-wrap"><div id="health-bar-fill"></div></div>
+                <div class="xp-bar-wrap"><div id="xp-bar-fill"></div></div>
+            </div>
+            
+            <div id="timer-container">
+                <div id="timer-label">FLOOR COLLAPSE</div>
+                <div id="timer-display">03:00</div>
+            </div>
+
+            <div class="hud-right">
+                <div id="score-display">SCORE: 0</div>
+                <div id="boxes-display" style="color: #ffaa00;">BOXES: 0</div>
+                <div id="wave-display" style="color: #ffaa00">WAVE 1</div>
+                <div id="enemies-display" style="font-size: 18px; color: #aaa">5 Foe(s) Left</div>
+            </div>
+        </div>
+
+        <div id="boss-bar-container">
+            <div id="boss-name">THE MOTHER</div>
+            <div id="boss-bar-fill"></div>
+        </div>
+
+        <!-- NEW PARTY BANTER OVERLAY -->
+        <div id="party-overlay" class="hidden">
+            <div id="party-box">
+                <div id="party-name"></div>
+                <div id="party-text"></div>
+            </div>
+        </div>
+
+        <div id="announcement-overlay" class="hidden">
+            <div id="ann-main">SYSTEM ALERT</div>
+            <div id="ann-sub">New Message</div>
+            <div id="ann-quote"></div>
+        </div>
+
+        <div id="tv-overlay">
+            <div id="viewer-count">12 Viewers</div>
+            <div id="chat-feed"></div>
+        </div>
+
+        <div id="system-log">
+            <div class="log-entry log-system">System Initialized...</div>
+        </div>
+
+        <div id="inventory-bar">
+            <div class="inv-slot" id="slot-0" onclick="useItem(0)">
+                <span class="inv-key">1</span><span class="inv-icon"></span><span class="inv-count"></span>
+            </div>
+            <div class="inv-slot" id="slot-1" onclick="useItem(1)">
+                <span class="inv-key">2</span><span class="inv-icon"></span><span class="inv-count"></span>
+            </div>
+            <div class="inv-slot" id="slot-2" onclick="useItem(2)">
+                <span class="inv-key">3</span><span class="inv-icon"></span><span class="inv-count"></span>
+            </div>
+        </div>
+
+        <div id="mobile-controls">
+            <div class="joystick-zone" id="joystick"></div>
+            <div class="action-btn" id="kick-btn">KICK</div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen-overlay">
+        <h1>DUNGEON CRAWLER CARL</h1>
+        <h2>Mongo & The Tangle Update</h2>
+        <p style="color: #aaa; max-width: 600px; font-size: 22px; background: rgba(0,0,0,0.8); padding: 20px; border-radius: 10px; border: 1px solid #333;">
+            WASD to Move. SPACE to Kick. 1-3 Items. <span style="color:#fff">'C' for Stats</span><br><br>
+            <span style="color: #ffaa00; font-weight: bold;">NEW:</span> <b>Mimics</b> (Watch out!), <b>Gate of the Feral Gods</b> (Boom).<br>
+            <span style="color: #00ccff;">TUTORIAL:</span> You are under Mordecai's management.<br>
+        </p>
+        <button class="btn" id="start-btn">ENTER DUNGEON</button>
+    </div>
+
+    <!-- Stats Screen (Character Sheet) -->
+    <div id="stats-screen" class="screen-overlay hidden" onclick="toggleStats()">
+        <div id="char-sheet-container" onclick="event.stopPropagation()">
+            <h1 style="text-align:center; color:#00ccff; margin-bottom:10px;">CRAWLER STATUS</h1>
+            <div style="text-align:center; font-size:24px; color:#aaa; margin-bottom:20px;">
+                Race: Human (Primal) | Class: <span id="sheet-class">None</span> | Guild: <span id="sheet-guild">None</span>
+            </div>
+            
+            <div class="stat-row">
+                <span class="stat-name">STR (Strength)</span>
+                <span class="stat-val" id="val-str">10</span>
+                <span class="stat-desc">Kick Damage: <span id="der-kick">50</span></span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-name">DEX (Dexterity)</span>
+                <span class="stat-val" id="val-dex">10</span>
+                <span class="stat-desc">Speed: <span id="der-spd">100%</span></span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-name">CON (Constitution)</span>
+                <span class="stat-val" id="val-con">10</span>
+                <span class="stat-desc">Max HP: <span id="der-hp">100</span></span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-name">INT (Intelligence)</span>
+                <span class="stat-val" id="val-int">10</span>
+                <span class="stat-desc">Cooldown Reduc: <span id="der-cd">0%</span></span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-name">CHA (Charisma)</span>
+                <span class="stat-val" id="val-cha">10</span>
+                <span class="stat-desc">Favor Gain: <span id="der-fav">1.0x</span></span>
+            </div>
+
+            <div style="text-align:center; margin-top:20px;">
+                <button class="btn" onclick="toggleStats()">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Safe Room Screen -->
+    <div id="safe-room-screen" class="screen-overlay hidden">
+        <div class="safe-room-panel">
+            <div class="mordecai-avatar">🧛</div>
+            <h1 id="safe-room-title" style="color: #ffaa00; font-size: 50px;">THE DESPERADO CLUB</h1>
+            <h2>Safe Room - Floor <span id="safe-floor-display">1</span></h2>
+            
+            <div class="mordecai-text" id="mordecai-msg">
+                "Welcome to the club. Don't touch the gnome."
+            </div>
+
+            <!-- Normal Safe Room Controls -->
+            <div id="safe-room-controls">
+                
+                <div id="loot-panel">
+                    <h3 style="color:#ffaa00">LOOT MANAGEMENT</h3>
+                    <div style="font-size: 24px; color: #fff;">Pending Boxes: <span id="safe-loot-count" style="color: #ffaa00">0</span></div>
+                    <button class="btn" id="open-loot-btn" onclick="openAllLoot()">OPEN ALL BOXES</button>
+                    <div id="loot-results"></div>
+                </div>
+
+                <div style="display: flex; gap: 20px; justify-content: center; margin-top: 30px;">
+                    <button class="btn" id="heal-btn" onclick="buyHeal()">Buy "Dirty Shirley" (100)</button>
+                    <button class="btn" id="next-wave-btn" onclick="showRecap()">HEAD TO THE RECAP →</button>
+                </div>
+                
+                <div id="guild-panel" class="hidden">
+                    <h3 style="color:#d4af37">GUILD MANAGEMENT</h3>
+                    <div id="guild-create-ui">
+                        <input type="text" id="guild-input" placeholder="Enter Guild Name" maxlength="20">
+                        <button class="btn" onclick="createGuild()">Form Guild (500 Pts)</button>
+                    </div>
+                    <div id="guild-active-ui" class="hidden">
+                        <div style="color:#d4af37; font-size: 24px;">Active Guild: <span id="active-guild-name" style="color:white"></span></div>
+                        <div style="color:#aaa; font-size: 18px;">Score Multiplier: x1.5</div>
+                    </div>
+                </div>
+                
+                <div id="tutorial-status" style="margin-top:20px; color: #888; font-style:italic;">
+                    STATUS: Tutorial Group (Manager: Mordecai)
+                </div>
+
+                <p style="margin-top: 20px; color: #888;">Current Score: <span id="safe-score-val">0</span></p>
+            </div>
+
+            <!-- Class Selection -->
+            <div id="class-selection" class="hidden">
+                <h3 style="color: #00ccff; margin-bottom: 10px;">SELECT YOUR CLASS</h3>
+                <div id="class-select-container">
+                    <div class="class-card" onclick="selectClass('primalist')">
+                        <div class="class-title">👊 PRIMALIST</div>
+                        <div class="class-desc">Kick Damage x2.<br>More Health.<br>Classic Carl.</div>
+                    </div>
+                    <div class="class-card" onclick="selectClass('magic')">
+                        <div class="class-title">✨ MAGIC USER</div>
+                        <div class="class-desc">Start with Magic Missile.<br>Donut Synergy.<br>Less HP.</div>
+                    </div>
+                    <div class="class-card" onclick="selectClass('demo')">
+                        <div class="class-title">💣 DEMOLITIONIST</div>
+                        <div class="class-desc">Start with 10 Bombs.<br>Big Explosions.<br>Chaos.</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Recap Show Screen - "The Show Must Go On" -->
+    <div id="recap-screen" class="screen-overlay hidden">
+        <div class="recap-panel" style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 40px; border-radius: 10px; max-width: 700px; text-align: center; border: 3px solid #e94560;">
+            <div style="font-size: 16px; color: #e94560; letter-spacing: 5px;">LIVE FROM THE DUNGEON</div>
+            <h1 style="color: #fff; font-size: 48px; margin: 10px 0; text-shadow: 0 0 20px #e94560;">📺 THE RECAP 📺</h1>
+            <h2 style="color: #ffaa00;">Floor <span id="recap-floor">1</span> Highlights</h2>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 30px 0; text-align: left;">
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 5px;">
+                    <div style="color: #888; font-size: 14px;">ENEMIES SMUSHED</div>
+                    <div id="recap-kills" style="color: #ff4444; font-size: 32px; font-weight: bold;">0</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 5px;">
+                    <div style="color: #888; font-size: 14px;">DAMAGE DEALT</div>
+                    <div id="recap-damage" style="color: #00ff00; font-size: 32px; font-weight: bold;">0</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 5px;">
+                    <div style="color: #888; font-size: 14px;">LOOT COLLECTED</div>
+                    <div id="recap-loot" style="color: #ffaa00; font-size: 32px; font-weight: bold;">0</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 15px; border-radius: 5px;">
+                    <div style="color: #888; font-size: 14px;">TIME SURVIVED</div>
+                    <div id="recap-time" style="color: #00ccff; font-size: 32px; font-weight: bold;">0:00</div>
+                </div>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 5px; margin: 20px 0;">
+                <div style="color: #e94560; font-size: 14px; margin-bottom: 10px;">SYSTEM COMMENTARY</div>
+                <div id="recap-commentary" style="color: #fff; font-size: 18px; font-style: italic;">"Not bad for a crawler in his underwear."</div>
+            </div>
+
+            <div style="color: #888; margin: 20px 0;">
+                <span style="color: #ff4444;">❤️ <span id="recap-viewers">0</span></span> viewers watching
+            </div>
+
+            <div id="stairwell-timer" style="display: none; margin: 20px 0;">
+                <div style="color: #ff4444; font-size: 24px; font-weight: bold;">⚠️ STAIRWELL CLOSING IN</div>
+                <div id="stairwell-countdown" style="color: #fff; font-size: 48px; font-weight: bold;">30</div>
+            </div>
+
+            <button class="btn" id="recap-continue-btn" onclick="startStairwellCountdown()" style="margin-top: 20px; font-size: 24px; padding: 15px 40px;">
+                HEAD TO STAIRWELL →
+            </button>
+        </div>
+    </div>
+
+    <!-- Upgrade Screen -->
+    <div id="upgrade-screen" class="screen-overlay hidden">
+        <h1 class="level-up-title">LEVEL UP!</h1>
+        <h2>Choose your reward, Crawler:</h2>
+        <div id="upgrade-options"></div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="screen-overlay hidden">
+        <h1 style="color: red;">YOU DIED</h1>
+        <h2 id="death-reason">Squished like a bug.</h2>
+        <div id="final-score" style="font-size: 30px; color: white; margin-top: 20px;"></div>
+        <button class="btn" id="restart-btn">RE-ROLL CHARACTER</button>
+    </div>
+</div>
+
+<script>
+/**
+ * Dungeon Crawler Carl - Mongo & The Tangle Update
+ */
+
+// --- Constants ---
+const COLORS = {
+    bg: '#0a0a0a',
+    gridLight: '#151515',
+    gridDark: '#0e0e0e',
+    portal: '#00ccff',
+    blood: '#aa0000'
+};
+
+const ITEMS = {
+    POTION: { id: 'potion', icon: '🍷', name: 'Dirty Martini', desc: 'Heals 50HP' },
+    BOMB: { id: 'bomb', icon: '💣', name: 'Bomb', desc: 'Explosive' },
+    TRAP: { id: 'trap', icon: '🕸️', name: 'Snare', desc: 'Stuns Area' },
+    STEROID: { id: 'steroid', icon: '💉', name: 'Rage Shot', desc: 'Dmg Boost' },
+    PLATINUM: { id: 'plat', icon: '📦', name: 'Platinum Box', desc: 'Favor Reward' },
+    GATE: { id: 'gate', icon: '🌋', name: 'Gate of Feral Gods', desc: 'DOOMSDAY DEVICE' }
+};
+
+const SPRITES = {
+    carl: '🧔', donut: '🐈', goblin: '👺', kobold: '🦎', bat: '🦇', boss: '👹',
+    bomb: '💣', loot: '🎁', explosion: '💥', foot: '🦶', arrow: '🗡️', skull: '💀',
+    smushed: '💢', stairs: '🚪', trap: '🕸️', potion: '🍷', steroid: '💉', mongo: '🦖', mimic: '👾',
+    wall: '🧱', door: '🚪'
+};
+
+// --- ROOM SYSTEM ---
+const ROOM_TEMPLATES = {
+    'start': {
+        name: 'Entry Chamber',
+        width: 800, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 800, h: 20 },      // top
+            { x: 0, y: 580, w: 800, h: 20 },    // bottom
+            { x: 0, y: 0, w: 20, h: 600 },      // left
+            { x: 780, y: 0, w: 20, h: 220 },    // right top (gap 220-380 = 160px)
+            { x: 780, y: 380, w: 20, h: 220 }   // right bottom
+        ],
+        doors: [{ side: 'right', offset: 0.5 }],
+        spawns: 3,
+        spawnArea: { x: 50, y: 50, w: 700, h: 500 }
+    },
+    'small_square': {
+        name: 'Small Chamber',
+        width: 600, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 600, h: 20 },      // top
+            { x: 0, y: 580, w: 600, h: 20 },    // bottom
+            { x: 0, y: 0, w: 20, h: 600 },      // left - SOLID (no gap)
+            { x: 580, y: 0, w: 20, h: 600 }     // right - SOLID (no gap)
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 4,
+        spawnArea: { x: 50, y: 50, w: 500, h: 500 }
+    },
+    'long_corridor': {
+        name: 'Corridor',
+        width: 1000, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 1000, h: 20 },     // top
+            { x: 0, y: 580, w: 1000, h: 20 },   // bottom
+            { x: 0, y: 0, w: 20, h: 600 },      // left - SOLID (no gap)
+            { x: 980, y: 0, w: 20, h: 600 }     // right - SOLID (no gap)
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 3,
+        spawnArea: { x: 50, y: 50, w: 900, h: 500 }
+    },
+    'L_shaped': {
+        name: 'Wide Chamber',
+        width: 900, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 900, h: 20 },      // top
+            { x: 0, y: 580, w: 900, h: 20 },    // bottom
+            { x: 0, y: 0, w: 20, h: 600 },      // left - SOLID (no gap)
+            { x: 880, y: 0, w: 20, h: 600 }     // right - SOLID (no gap)
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 5,
+        spawnArea: { x: 50, y: 50, w: 800, h: 500 }
+    },
+    'arena': {
+        name: 'Battle Arena',
+        width: 1000, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 1000, h: 20 },     // top
+            { x: 0, y: 580, w: 1000, h: 20 },   // bottom
+            { x: 0, y: 0, w: 20, h: 600 },      // left - SOLID (no gap)
+            { x: 980, y: 0, w: 20, h: 600 },    // right - SOLID (no door)
+            // Pillars for cover
+            { x: 250, y: 150, w: 60, h: 60 },
+            { x: 690, y: 150, w: 60, h: 60 },
+            { x: 250, y: 390, w: 60, h: 60 },
+            { x: 690, y: 390, w: 60, h: 60 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }],
+        spawns: 8,
+        spawnArea: { x: 50, y: 50, w: 900, h: 500 },
+        isBossRoom: true
+    },
+    'exit': {
+        name: 'Stairwell Chamber',
+        width: 600, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 600, h: 20 },      // top
+            { x: 0, y: 580, w: 600, h: 20 },    // bottom
+            { x: 0, y: 0, w: 20, h: 600 },      // left - SOLID (no gap)
+            { x: 580, y: 0, w: 20, h: 600 }     // right - SOLID (no door)
+        ],
+        doors: [{ side: 'left', offset: 0.5 }],
+        spawns: 0,
+        spawnArea: { x: 100, y: 100, w: 400, h: 400 },
+        hasExit: true
+    },
+    'safe_room': {
+        name: 'The Prancing Princess',
+        width: 800, height: 600,
+        walls: [
+            { x: 0, y: 0, w: 800, h: 20 },      // top
+            { x: 0, y: 580, w: 800, h: 20 },    // bottom
+            { x: 0, y: 0, w: 20, h: 600 },      // left - SOLID (no gap)
+            { x: 780, y: 0, w: 20, h: 600 },    // right - SOLID (no gap)
+            // Bar counter
+            { x: 500, y: 150, w: 200, h: 30 },
+            { x: 500, y: 420, w: 200, h: 30 }
+        ],
+        doors: [{ side: 'left', offset: 0.5 }, { side: 'right', offset: 0.5 }],
+        spawns: 0,
+        spawnArea: { x: 100, y: 100, w: 300, h: 400 },
+        isSafeRoom: true
+    }
+};
+
+// Floor phase system - matches the book's structure
+const FLOOR_PHASES = {
+    DESCENT: 'descent',      // Entering floor, System announcement
+    CRAWL: 'crawl',          // Exploring and fighting
+    SAFE_ROOM: 'safe_room',  // In the pub, resting
+    RECAP: 'recap',          // The Show plays highlights
+    STAIRWELL: 'stairwell',  // Timer countdown, find stairs
+};
+
+let currentPhase = FLOOR_PHASES.DESCENT;
+let phaseTimer = 0;
+let stairwellTimer = 0;
+let floorStats = { kills: 0, damageDealt: 0, damageTaken: 0, lootCollected: 0, timeSpent: 0 };
+
+const ROOM_MODIFIERS = {
+    'none': { name: 'Normal', desc: '', apply: () => {} },
+    'darkness': {
+        name: 'Darkness',
+        desc: 'Reduced visibility',
+        apply: (room) => { room.lightRadius = 150; }
+    },
+    'flood': {
+        name: 'Flood Warning',
+        desc: 'Room floods in 30s!',
+        apply: (room) => { room.floodTimer = 30; }
+    },
+    'audience_favorite': {
+        name: 'Audience Favorite',
+        desc: '2x viewer gain',
+        apply: (room) => { room.viewerMultiplier = 2; }
+    },
+    'mimic_den': {
+        name: 'Mimic Den',
+        desc: 'Loot is suspicious...',
+        apply: (room) => { room.mimicChance = 0.5; }
+    },
+    'blood_moon': {
+        name: 'Blood Moon',
+        desc: 'Enemies are faster!',
+        apply: (room) => { room.enemySpeedMult = 1.5; }
+    }
+};
+
+// Current dungeon state
+let currentDungeon = null;
+let currentRoomIndex = 0;
+let previousRoomIndex = -1; // Track which room we came from to prevent backward passage
+let roomTransitionCooldown = 0; // Prevents immediate re-triggering of doors
+let playerGraceTimer = 0; // Brief invulnerability when entering rooms
+
+const SPLASH_QUOTES = {
+    wave: [
+        { text: "DONUT: Ugh, goblins. They smell like poverty.", color: "#ff99cc" },
+        { text: "CARL: Stay behind me, Donut. Watch the walls.", color: "#00ccff" },
+        { text: "CHAT: GLERP GLERP GLERP!", color: "#ffffff" },
+        { text: "DONUT: I hope the cameras are getting my good side!", color: "#ff99cc" },
+        { text: "SYSTEM: NEW MEAT ENTERING THE GRINDER.", color: "#00ff00" }
+    ],
+    boss: [
+        { text: "DONUT: IT'S SO UGLY! KILL IT CARL!", color: "#ff99cc" },
+        { text: "CHAT: RIP CRAWLER. NICE KNOWING YA.", color: "#ff0000" },
+        { text: "SYSTEM: PREPARE FOR SQUISHING.", color: "#00ff00" },
+        { text: "CARL: That's a big one. Get the bombs ready.", color: "#00ccff" }
+    ],
+    loot: [
+        { text: "DONUT: DIBS! I CALLED DIBS!", color: "#ff99cc" },
+        { text: "CHAT: POGGERS! P2W CONFIRMED!", color: "#ffffff" },
+        { text: "CARL: Hopefully it's not just more heart boxers.", color: "#00ccff" },
+        { text: "SYSTEM: A REWARD FOR YOUR MEDIOCRITY.", color: "#00ff00" }
+    ],
+    smush: [
+        { text: "CHAT: FEET PICS PLS", color: "#ffff00" },
+        { text: "DONUT: Carl, you stepped in something gross again.", color: "#ff99cc" },
+        { text: "SYSTEM: THE VIEWERS ARE AROUSED BY YOUR TOES.", color: "#00ff00" },
+        { text: "CHAT: SMUSH IT GOOD!", color: "#ffffff" }
+    ]
+};
+
+const SYSTEM_QUOTES = {
+    start: "New Crawler entering the dungeon. Try not to embarrass yourself.",
+    level: "Level Up. You are slightly less pathetic.",
+    smush: "NICE TOES.",
+    smush_spree: "THE SYSTEM IS PLEASED WITH YOUR FEET.",
+    boss: "BOSS ALERT. PREPARE TO DIE.",
+    death: "Crawler Terminated. Recycling Biomass."
+};
+
+// UPDATED UPGRADES TO USE ATTRIBUTES
+const UPGRADES = [
+    { id: 'str_boost', name: 'Swole Daddy', desc: 'Strength +5', type: 'stat', stat: 'str', val: 5 },
+    { id: 'dex_boost', name: 'Zoomies', desc: 'Dexterity +5', type: 'stat', stat: 'dex', val: 5 },
+    { id: 'con_boost', name: 'Tough Hide', desc: 'Constitution +5', type: 'stat', stat: 'con', val: 5 },
+    { id: 'int_boost', name: 'Big Brain', desc: 'Intelligence +5', type: 'stat', stat: 'int', val: 5 },
+    { id: 'cha_boost', name: 'Mongo!', desc: 'Charisma +5', type: 'stat', stat: 'cha', val: 5 }
+];
+
+const MORDECAI_TIPS = {
+    start: "Listen up. The dungeon is a show. If you're boring, you die. If you're dead, you die. Don't be either.",
+    kobold: "Cookbook Update: Kobolds. Nasty little archers. They're cowardly. Corner them and smash their skulls.",
+    boss: "Manager Alert: That's a Boss. High health, hits like a truck. Use your explosives, Carl!",
+    low_timer: "Hurry it up! The floor collapse is imminent. You do NOT want to be here when that hits zero.",
+    bomb: "Explosives. Good. Donut, don't touch those. Carl, try not to blow your remaining toes off.",
+    safe_room_1: "Welcome to the Desperado Club. This is the tutorial safe room. Drink up.",
+    safe_room_2: "Floor 2 done. You survived the tutorial. Now the real show begins.",
+    safe_room_3: "The Iron Tangle. Welcome to The Golden Goose. Watch your step, it gets messy from here."
+};
+
+const PARTY_CHAT = {
+    idle: [ { u: 'D', t: "CARL, THIS DUNGEON SMELLS LIKE WET DOG." }, { u: 'C', t: "Focus, Donut. We need to find the stairs." }, { u: 'D', t: "I HOPE THE CAMERAS ARE GETTING MY GOOD SIDE." } ],
+    combat: [ { u: 'D', t: "TAKE THAT, YOU PEASANT!" }, { u: 'C', t: "Nice shot, Donut!" }, { u: 'D', t: "I AM THE QUEEN OF THE DUNGEON!" } ],
+    bomb_pickup: [ { u: 'D', t: "I AM NOT CARRYING THAT FILTHY EXPLOSIVE." }, { u: 'C', t: "Fine, I'll take it." } ],
+    low_hp: [ { u: 'D', t: "CARL! YOU'RE BLEEDING ON THE FLOOR!" }, { u: 'C', t: "I'm fine... just a scratch..." } ]
+};
+
+const SAFE_ROOM_NAMES = [
+    "THE DESPERADO CLUB", // Floor 1
+    "THE DESPERADO CLUB", // Floor 2
+    "THE GOLDEN GOOSE",   // Floor 3
+    "MEADOWLARK REST"     // Floor 4+
+];
+
+// LOOT TABLE
+const LOOT_TABLE = [
+    { name: "Goblin Ear", type: "junk", score: 50, rarity: "Common" },
+    { name: "Dirty Sock", type: "junk", score: 10, rarity: "Trash" },
+    { name: "Mana Toast", type: "junk", score: 100, rarity: "Common" },
+    { name: "Healing Potion", type: "item", item: ITEMS.POTION, rarity: "Uncommon" },
+    { name: "Explosive Charge", type: "item", item: ITEMS.BOMB, rarity: "Uncommon" },
+    { name: "Rage Stim", type: "item", item: ITEMS.STEROID, rarity: "Rare" },
+    { name: "Gold Ring", type: "score", score: 500, rarity: "Rare" },
+    { name: "Carl's Boxers (Spare)", type: "score", score: 1000, rarity: "Epic" },
+    { name: "The Cookbook", type: "score", score: 2000, rarity: "Epic" },
+    { name: "Fan Mail (Creepy)", type: "junk", score: 1, rarity: "Trash" },
+    { name: "Toe Ring of Smiting", type: "score", score: 1500, rarity: "Rare" },
+    { name: "Naughty Enthusiast Mag", type: "junk", score: 69, rarity: "Common" },
+    { name: "Gate of Feral Gods", type: "item", item: ITEMS.GATE, rarity: "Epic" }
+];
+
+let partyTimeout;
+function showPartyMessage(name, text, color) {
+    const overlay = document.getElementById('party-overlay');
+    const box = document.getElementById('party-box');
+    const nameEl = document.getElementById('party-name');
+    const textEl = document.getElementById('party-text');
+    
+    nameEl.innerText = name;
+    nameEl.style.color = color;
+    textEl.innerText = text;
+    box.style.borderColor = color;
+    
+    overlay.classList.remove('hidden');
+    void overlay.offsetWidth;
+    overlay.classList.add('active');
+    
+    if (partyTimeout) clearTimeout(partyTimeout);
+    partyTimeout = setTimeout(() => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.classList.add('hidden'), 200);
+    }, 3000);
+}
+
+function triggerPartyChat(category) {
+    let msgs = PARTY_CHAT[category] || PARTY_CHAT.idle; let msg = msgs[Math.floor(Math.random() * msgs.length)];
+    let name = msg.u === 'D' ? 'PRINCESS DONUT' : 'CARL';
+    let color = msg.u === 'D' ? '#ff99cc' : '#00ccff';
+    logMessage(name, msg.t, msg.u === 'D' ? 'log-party-donut' : 'log-party-carl');
+    showPartyMessage(name, msg.t, color);
+}
+
+function triggerMordecai(key) { let msg = MORDECAI_TIPS[key]; if (msg) logMessage("Mordecai", msg, "log-mordecai"); }
+
+// --- Audio System ---
+let audioCtx = null;
+let musicOscillators = [];
+let musicGain = null;
+
+function initAudio() {
+    if (audioCtx) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return;
+    }
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+        console.warn('AudioContext not available:', e);
+        audioCtx = null;
+    }
+}
+
+function speakSystem(text, pitch = 0.6, rate = 0.9) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    let u = new SpeechSynthesisUtterance(text);
+    u.rate = rate;
+    u.pitch = pitch; 
+    u.volume = 1.0;
+    let voices = window.speechSynthesis.getVoices();
+    let preferred = voices.find(v => v.name.includes("Google US English") || v.name.includes("Male"));
+    if (preferred) u.voice = preferred;
+    window.speechSynthesis.speak(u);
+}
+
+function playSound(type) {
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination); const t = audioCtx.currentTime;
+    if (type === 'kick') { osc.frequency.setValueAtTime(100, t); osc.frequency.exponentialRampToValueAtTime(30, t + 0.15); gain.gain.setValueAtTime(0.3, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15); osc.start(); osc.stop(t + 0.15); }
+    else if (type === 'hit') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, t); gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1); osc.start(); osc.stop(t + 0.1); }
+    else if (type === 'portal') { osc.type = 'sine'; osc.frequency.setValueAtTime(200, t); osc.frequency.linearRampToValueAtTime(800, t + 1.0); gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 1.0); osc.start(); osc.stop(t + 1.0); }
+    else if (type === 'explode') { osc.type = 'square'; osc.frequency.setValueAtTime(100, t); osc.frequency.exponentialRampToValueAtTime(10, t + 0.5); gain.gain.setValueAtTime(0.5, t); gain.gain.linearRampToValueAtTime(0, t + 0.5); osc.start(); osc.stop(t + 0.5); }
+    else if (type === 'smush') { osc.type = 'triangle'; osc.frequency.setValueAtTime(200, t); osc.frequency.linearRampToValueAtTime(50, t + 0.2); gain.gain.setValueAtTime(0.3, t); gain.gain.linearRampToValueAtTime(0, t + 0.2); osc.start(); osc.stop(t + 0.2); }
+    else if (type === 'achievement') { 
+        osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, t); osc.frequency.setValueAtTime(659.25, t + 0.1); osc.frequency.setValueAtTime(783.99, t + 0.2); osc.frequency.setValueAtTime(1046.50, t + 0.3); gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0); osc.start(); osc.stop(t + 1.0); 
+    }
+}
+
+let announcementTimeout;
+function showAnnouncement(mainText, subText = "", color = "#fff", category = null) {
+    const container = document.getElementById('announcement-overlay');
+    const mainEl = document.getElementById('ann-main');
+    const subEl = document.getElementById('ann-sub');
+    const quoteEl = document.getElementById('ann-quote');
+    mainEl.innerText = mainText; mainEl.style.color = color; mainEl.style.textShadow = `0 0 20px ${color}, 0 0 40px ${color}`; subEl.innerText = subText;
+    quoteEl.innerText = "";
+    if (category && SPLASH_QUOTES[category]) {
+        const q = SPLASH_QUOTES[category][Math.floor(Math.random() * SPLASH_QUOTES[category].length)];
+        quoteEl.innerText = q.text; quoteEl.style.color = q.color; quoteEl.style.display = "block"; quoteEl.style.borderColor = q.color;
+    } else { quoteEl.style.display = "none"; }
+    container.classList.remove('hidden'); void container.offsetWidth; container.classList.add('active');
+    if (announcementTimeout) clearTimeout(announcementTimeout);
+    announcementTimeout = setTimeout(() => { container.classList.remove('active'); setTimeout(() => container.classList.add('hidden'), 500); }, 2000);
+}
+
+// --- Achievement System ---
+const ACHIEVEMENTS = {
+    smush: { id: 'smush', title: 'SMUSH ENTHUSIAST', desc: 'Squished 5 enemies with your bare feet.', trigger: (s) => s.smushCount >= 5, done: false },
+    hoarder: { id: 'hoarder', title: 'HOARDER', desc: 'Carrying 5 unopened loot boxes.', trigger: (s) => s.lootCount >= 5, done: false },
+    masochist: { id: 'masochist', title: 'MASOCHIST', desc: 'Survived with < 20% Health.', trigger: (s) => s.hp < 20 && s.hp > 0, done: false },
+    pyro: { id: 'pyro', title: 'PYROMANIAC', desc: 'Used your first explosive.', trigger: (s) => s.bombUsed, done: false },
+    boss: { id: 'boss', title: 'BOSS SLAYER', desc: 'Defeated a floor boss.', trigger: (s) => s.bossKilled, done: false },
+    tutorial: { id: 'tutorial', title: 'TUTORIAL COMPLETE', desc: 'Reached Floor 3.', trigger: (s) => s.floor >= 3, done: false },
+    lucky: { id: 'lucky', title: 'LUCKY DEVIL', desc: 'Found an Epic item.', trigger: (s) => s.foundEpic, done: false },
+    addict: { id: 'addict', title: 'BOX ADDICT', desc: 'Opened 5+ boxes at once.', trigger: (s) => s.openedBatch, done: false }
+};
+
+let achievementState = {
+    smushCount: 0, lootCount: 0, hp: 100, bombUsed: false, bossKilled: false, floor: 1, foundEpic: false, openedBatch: false
+};
+
+function checkAchievements() {
+    for (let key in ACHIEVEMENTS) {
+        let ach = ACHIEVEMENTS[key];
+        if (!ach.done && ach.trigger(achievementState)) {
+            triggerAchievement(ach.title, ach.desc);
+            ach.done = true;
+        }
+    }
+}
+
+function triggerAchievement(title, desc) {
+    showAnnouncement("NEW ACHIEVEMENT!", title, "#FFD700"); // Gold color
+    logMessage("System", `ACHIEVEMENT UNLOCKED: ${title} - ${desc}`, "log-achievement");
+    speakSystem("Neeeeew Achievement!", 1.3, 0.6); // High pitch, slow rate
+    playSound('achievement');
+}
+
+// --- Chat Systems ---
+const CHAT_USERS = ["PrincessDonutFan1", "FootFreak", "Odette", "Crawler33", "GoblinLover", "BorantPerv", "AI_Mod"];
+const CHAT_MESSAGES = {
+    kill: ["Nice!", "SPLAT!", "Eww gross", "More blood!", "Is that it?", "Use the cat!"],
+    kick: ["Toes!", "Nice form", "Kick him again!", "Smush!", "Bare feet ftw", "I love feet"],
+    idle: ["Boring...", "Do something", "Switching streams", "Show us Donut", "Are we there yet?"]
+};
+function addChatMessage(type) {
+    let user = CHAT_USERS[Math.floor(Math.random() * CHAT_USERS.length)]; let pool = CHAT_MESSAGES[type] || CHAT_MESSAGES.idle; let msg = pool[Math.floor(Math.random() * pool.length)];
+    let el = document.createElement('div'); el.className = 'chat-msg';
+    let uSpan = `<span class="user-name ${user === 'Odette' ? 'user-mod' : ''}">${user}:</span>`;
+    el.innerHTML = `${uSpan} <span class="msg-text">${msg}</span>`;
+    ui.chat.appendChild(el); if (ui.chat.children.length > 8) ui.chat.removeChild(ui.chat.children[0]); ui.chat.scrollTop = ui.chat.scrollHeight;
+}
+function logMessage(sender, msg, type) {
+    let div = document.createElement('div'); div.classList.add('log-entry'); if (type) div.classList.add(type);
+    div.innerText = `> [${sender}] ${msg}`; ui.log.appendChild(div); ui.log.scrollTop = ui.log.scrollHeight;
+}
+
+// --- Game State ---
+const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
+const ui = {
+    hp: document.getElementById('health-bar-fill'), xp: document.getElementById('xp-bar-fill'), lvlSmall: document.getElementById('lvl-display-small'),
+    score: document.getElementById('score-display'), wave: document.getElementById('wave-display'), enemiesLeft: document.getElementById('enemies-display'),
+    announce: document.getElementById('announcement-overlay'), timer: document.getElementById('timer-display'), log: document.getElementById('system-log'),
+    chat: document.getElementById('chat-feed'), viewers: document.getElementById('viewer-count'), boxes: document.getElementById('boxes-display'),
+    slots: [document.getElementById('slot-0'), document.getElementById('slot-1'), document.getElementById('slot-2')],
+    start: document.getElementById('start-screen'), upgrade: document.getElementById('upgrade-screen'), upgradeOpts: document.getElementById('upgrade-options'),
+    safeRoom: document.getElementById('safe-room-screen'), safeRoomTitle: document.getElementById('safe-room-title'), mordecai: document.getElementById('mordecai-msg'), safeScore: document.getElementById('safe-score-val'),
+    healBtn: document.getElementById('heal-btn'), safeFloor: document.getElementById('safe-floor-display'), over: document.getElementById('game-over-screen'),
+    finalScore: document.getElementById('final-score'), deathReason: document.getElementById('death-reason'), bossBar: document.getElementById('boss-bar-container'),
+    bossFill: document.getElementById('boss-bar-fill'), bossName: document.getElementById('boss-name'), safeControls: document.getElementById('safe-room-controls'),
+    classSelect: document.getElementById('class-selection'), classDisplay: document.getElementById('class-display'),
+    guildPanel: document.getElementById('guild-panel'), guildCreate: document.getElementById('guild-create-ui'), guildActive: document.getElementById('guild-active-ui'), 
+    activeGuildName: document.getElementById('active-guild-name'), guildInput: document.getElementById('guild-input'), guildTag: document.getElementById('guild-tag'),
+    tutorialStatus: document.getElementById('tutorial-status'), safeLootCount: document.getElementById('safe-loot-count'), lootResults: document.getElementById('loot-results'), openLootBtn: document.getElementById('open-loot-btn'),
+    statsScreen: document.getElementById('stats-screen'), sheetClass: document.getElementById('sheet-class'), sheetGuild: document.getElementById('sheet-guild'),
+    valStr: document.getElementById('val-str'), valDex: document.getElementById('val-dex'), valCon: document.getElementById('val-con'), valInt: document.getElementById('val-int'), valCha: document.getElementById('val-cha'),
+    derKick: document.getElementById('der-kick'), derSpd: document.getElementById('der-spd'), derHp: document.getElementById('der-hp'), derCd: document.getElementById('der-cd'), derFav: document.getElementById('der-fav'),
+    // Recap screen elements
+    recapScreen: document.getElementById('recap-screen'), recapFloor: document.getElementById('recap-floor'),
+    recapKills: document.getElementById('recap-kills'), recapDamage: document.getElementById('recap-damage'),
+    recapLoot: document.getElementById('recap-loot'), recapTime: document.getElementById('recap-time'),
+    recapCommentary: document.getElementById('recap-commentary'), recapViewers: document.getElementById('recap-viewers'),
+    stairwellTimer: document.getElementById('stairwell-timer'), stairwellCountdown: document.getElementById('stairwell-countdown'),
+    recapContinueBtn: document.getElementById('recap-continue-btn')
+};
+
+let width, height, lastTime = 0, keys = {}, gameState = 'START', score = 0, floor = 1, wave = 1, viewers = 12, aiFavor = 0;
+let camera = { x: 0, y: 0 }; let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, ptrId: null };
+let gameTime = 0, floorTimeLeft = 180, screenshake = 0;
+let waveConfig = { enemiesToSpawn: 0, enemiesSpawned: 0, spawnTimer: 0, active: false };
+let player = null, donut = null;
+let enemies = [], projectiles = [], effects = [], loot = [], decals = [];
+let isOpeningLoot = false;
+const MAX_EFFECTS = 200;
+const MAX_DECALS = 50;
+
+// --- Classes ---
+/**
+ * 2D Vector class for positions, velocities, and calculations.
+ */
+class Vector2 { constructor(x, y) { this.x = x; this.y = y; } add(v) { return new Vector2(this.x + v.x, this.y + v.y); } sub(v) { return new Vector2(this.x - v.x, this.y - v.y); } mag() { return Math.sqrt(this.x * this.x + this.y * this.y); } normalize() { let m = this.mag(); return m === 0 ? new Vector2(0, 0) : new Vector2(this.x / m, this.y / m); } scale(s) { return new Vector2(this.x * s, this.y * s); } dist(v) { return Math.sqrt(Math.pow(this.x - v.x, 2) + Math.pow(this.y - v.y, 2)); } }
+/**
+ * Base class for all game entities (players, enemies, items, etc.).
+ */
+class Entity { constructor(x, y, size, icon) { this.pos = new Vector2(x, y); this.size = size; this.icon = icon; this.dead = false; this.angle = 0; this.stunned = 0; this.scaleY = 1; this.z = 0; this.bounceOffset = Math.random() * 10; this.isMoving = false; this.color = '#fff'; } update(dt) {} draw(ctx) { ctx.save(); ctx.translate(this.pos.x, this.pos.y); ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.beginPath(); ctx.ellipse(0, this.size/2.5, this.size/2, this.size/5, 0, 0, Math.PI*2); ctx.fill(); ctx.restore(); ctx.save(); let bounce = this.isMoving ? Math.abs(Math.sin(gameTime * 10 + this.bounceOffset)) * 5 : 0; ctx.translate(this.pos.x, this.pos.y - bounce - this.z); ctx.rotate(this.angle); ctx.scale(this.facingLeft ? -1 : 1, this.scaleY); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = `${this.size}px serif`; if (this.glow) { ctx.shadowColor = this.glowColor || this.color; ctx.shadowBlur = 20; } if (this.stunned > 0) ctx.filter = 'brightness(200%) grayscale(100%)'; ctx.fillText(this.icon, 0, 5); ctx.shadowBlur = 0; ctx.filter = 'none'; ctx.restore(); } }
+class Particle { constructor(x, y, color, size, speed) { this.pos = new Vector2(x, y); let angle = Math.random() * Math.PI * 2; this.vel = new Vector2(Math.cos(angle), Math.sin(angle)).scale(speed * Math.random()); this.color = color; this.size = size; this.life = 1.0; this.decay = Math.random() * 0.02 + 0.01; } update(dt) { this.pos = this.pos.add(this.vel.scale(dt)); this.vel = this.vel.scale(0.9); this.life -= this.decay; this.size *= 0.95; } draw(ctx) { if (this.life <= 0) return; ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.pos.x, this.pos.y, this.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1; } }
+class Stairway extends Entity {
+    constructor(x, y) { super(x, y, 80, SPRITES.stairs); this.glow = true; this.glowColor = '#00ccff'; this.blocked = false; }
+    update(dt) {
+        this.blocked = enemies.length > 0;
+        this.glowColor = this.blocked ? '#ff4444' : '#00ccff';
+        if (Math.random() < 0.2) effects.push(new Particle(this.pos.x, this.pos.y, this.blocked ? '#ff4444' : '#00ccff', 5, 50));
+    }
+    draw(ctx) {
+        super.draw(ctx);
+        if (this.blocked) {
+            ctx.save();
+            ctx.fillStyle = '#ff0000';
+            ctx.font = 'bold 16px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('KILL ALL ENEMIES', this.pos.x, this.pos.y - 60);
+            ctx.restore();
+        }
+    }
+}
+class Effect extends Entity { constructor(x, y, icon, size, duration) { super(x, y, size, icon); this.life = duration; this.maxLife = duration; this.glow = true; this.glowColor = '#ffaa00'; } update(dt) { this.life -= dt; if (this.life <= 0) this.dead = true; this.size += 50 * dt; } draw(ctx) { ctx.globalAlpha = this.life/this.maxLife; super.draw(ctx); ctx.globalAlpha = 1; } }
+class TextFloater { constructor(x, y, text, color) { this.pos = new Vector2(x,y); this.text = text; this.color = color; this.life = 0.8; this.velY = 50; } update(dt) { this.life -= dt; this.pos.y -= this.velY * dt; if(this.life<=0) this.dead=true; } draw(ctx) { ctx.globalAlpha = this.life; ctx.fillStyle = this.color; ctx.font="bold 24px monospace"; ctx.shadowColor = this.color; ctx.shadowBlur = 5; ctx.fillText(this.text, this.pos.x, this.pos.y); ctx.shadowBlur = 0; ctx.globalAlpha = 1; } }
+class Decal extends Entity { constructor(x, y, icon, size) { super(x, y, size, icon); this.scaleY = 0.3; this.life = 30; this.alpha = 0.8; } update(dt) { this.life -= dt; if (this.life < 0) this.dead = true; this.alpha = Math.min(0.8, this.life); } draw(ctx) { ctx.globalAlpha = this.alpha; super.draw(ctx); ctx.globalAlpha = 1; } }
+
+// --- DUNGEON SYSTEM CLASSES ---
+class Wall {
+    constructor(x, y, w, h, roomOffset = { x: 0, y: 0 }) {
+        this.x = x + roomOffset.x;
+        this.y = y + roomOffset.y;
+        this.w = w;
+        this.h = h;
+    }
+
+    // Check if a circle collides with this wall
+    collidesCircle(cx, cy, radius) {
+        const closestX = Math.max(this.x, Math.min(cx, this.x + this.w));
+        const closestY = Math.max(this.y, Math.min(cy, this.y + this.h));
+        const distX = cx - closestX;
+        const distY = cy - closestY;
+        return (distX * distX + distY * distY) < (radius * radius);
+    }
+
+    // Push entity out of wall
+    pushOut(entity, radius) {
+        const cx = entity.pos.x;
+        const cy = entity.pos.y;
+        const closestX = Math.max(this.x, Math.min(cx, this.x + this.w));
+        const closestY = Math.max(this.y, Math.min(cy, this.y + this.h));
+
+        const distX = cx - closestX;
+        const distY = cy - closestY;
+        const dist = Math.sqrt(distX * distX + distY * distY);
+
+        if (dist < radius && dist > 0) {
+            const overlap = radius - dist;
+            // Create new Vector2 instead of mutating (fixes stuck bug)
+            entity.pos = new Vector2(
+                entity.pos.x + (distX / dist) * overlap,
+                entity.pos.y + (distY / dist) * overlap
+            );
+        } else if (dist === 0) {
+            // Entity center is inside wall, push to nearest edge
+            const pushX = cx - (this.x + this.w / 2);
+            const pushY = cy - (this.y + this.h / 2);
+            if (Math.abs(pushX) > Math.abs(pushY)) {
+                entity.pos = new Vector2(
+                    pushX > 0 ? this.x + this.w + radius : this.x - radius,
+                    entity.pos.y
+                );
+            } else {
+                entity.pos = new Vector2(
+                    entity.pos.x,
+                    pushY > 0 ? this.y + this.h + radius : this.y - radius
+                );
+            }
+        }
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = '#333';
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.x, this.y, this.w, this.h);
+    }
+}
+
+class Door {
+    constructor(x, y, targetRoomIndex, side, roomOffset = { x: 0, y: 0 }) {
+        this.x = x + roomOffset.x;
+        this.y = y + roomOffset.y;
+        this.w = side === 'top' || side === 'bottom' ? 160 : 30;
+        this.h = side === 'top' || side === 'bottom' ? 30 : 160; // Increased from 80 to cover full wall gap
+        this.targetRoomIndex = targetRoomIndex;
+        this.side = side;
+        this.active = true;
+    }
+
+    contains(px, py) {
+        // Check if player is near the door - large radius for easy triggering
+        const centerX = this.x + this.w / 2;
+        const centerY = this.y + this.h / 2;
+        const dist = Math.sqrt(Math.pow(px - centerX, 2) + Math.pow(py - centerY, 2));
+        return dist < 100; // Large trigger radius
+    }
+
+    draw(ctx) {
+        // Draw glowing door indicator ON TOP of the wall
+        const centerX = this.x + this.w / 2;
+        const centerY = this.y + this.h / 2;
+
+        if (this.active) {
+            // Pulsing glow effect
+            const pulse = 0.5 + Math.sin(gameTime * 4) * 0.5;
+
+            // Outer glow
+            ctx.fillStyle = `rgba(0, 255, 255, ${pulse * 0.3})`;
+            ctx.fillRect(this.x - 10, this.y - 10, this.w + 20, this.h + 20);
+
+            // Inner door
+            ctx.fillStyle = `rgba(0, 200, 255, ${pulse * 0.6})`;
+            ctx.fillRect(this.x, this.y, this.w, this.h);
+
+            // Door frame
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(this.x, this.y, this.w, this.h);
+
+            // Door symbol
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 30px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('→', centerX, centerY);
+        } else {
+            // Inactive door - faint outline
+            ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(this.x, this.y, this.w, this.h);
+        }
+    }
+}
+
+class Room {
+    constructor(template, index, worldX, worldY) {
+        this.template = template;
+        this.index = index;
+        this.worldX = worldX;
+        this.worldY = worldY;
+        this.width = template.width;
+        this.height = template.height;
+        this.explored = false;
+        this.cleared = false;
+        this.walls = [];
+        this.doors = [];
+        this.modifier = null;
+        this.lightRadius = 400;
+        this.viewerMultiplier = 1;
+        this.mimicChance = 0.05;
+        this.enemySpeedMult = 1;
+        this.floodTimer = null;
+
+        // Create walls from template
+        const offset = { x: worldX, y: worldY };
+        template.walls.forEach(w => {
+            this.walls.push(new Wall(w.x, w.y, w.w, w.h, offset));
+        });
+    }
+
+    addDoor(side, offset, targetIndex) {
+        let x, y;
+        if (side === 'left') {
+            x = this.worldX;
+            y = this.worldY + this.height * offset - 80; // -80 = half of 160px door height
+        } else if (side === 'right') {
+            x = this.worldX + this.width - 30;
+            y = this.worldY + this.height * offset - 80;
+        } else if (side === 'top') {
+            x = this.worldX + this.width * offset - 80;
+            y = this.worldY;
+        } else {
+            x = this.worldX + this.width * offset - 80;
+            y = this.worldY + this.height - 30;
+        }
+        this.doors.push(new Door(x, y, targetIndex, side));
+    }
+
+    getSpawnPoint() {
+        const area = this.template.spawnArea;
+        const center = this.getCenter();
+        const minDistFromCenter = 150; // Keep enemies away from where player spawns
+
+        // Try up to 10 times to find a spawn point away from center
+        for (let i = 0; i < 10; i++) {
+            const x = this.worldX + area.x + Math.random() * area.w;
+            const y = this.worldY + area.y + Math.random() * area.h;
+            const dist = Math.sqrt(Math.pow(x - center.x, 2) + Math.pow(y - center.y, 2));
+            if (dist >= minDistFromCenter) {
+                return new Vector2(x, y);
+            }
+        }
+        // Fallback: spawn at edge of spawn area
+        const edge = Math.random() < 0.5 ? 0 : 1;
+        return new Vector2(
+            this.worldX + area.x + (edge ? area.w : 0),
+            this.worldY + area.y + Math.random() * area.h
+        );
+    }
+
+    getCenter() {
+        return new Vector2(
+            this.worldX + this.width / 2,
+            this.worldY + this.height / 2
+        );
+    }
+
+    // Keep entity inside room bounds - only allow through doors when canUseDoors is true
+    containEntity(entity, radius, canUseDoors = false, blockedRoomIndex = -1, hasBackCooldown = false) {
+        // NOTE: Horizontal boundaries are NOT enforced here - wall collisions handle left/right containment
+        // This prevents conflicts between boundary enforcement and wall collision pushOut
+        // Only enforce vertical (top/bottom) boundaries which don't have door gaps
+
+        const top = this.worldY + 20 + radius;
+        const bottom = this.worldY + this.height - 20 - radius;
+
+        if (entity.pos.y < top) entity.pos.y = top;
+        if (entity.pos.y > bottom) entity.pos.y = bottom;
+    }
+
+    draw(ctx) {
+        // Draw floor
+        ctx.fillStyle = this.modifier === 'blood_moon' ? '#1a0808' : '#0a0a0a';
+        ctx.fillRect(this.worldX, this.worldY, this.width, this.height);
+
+        // Draw grid pattern
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 1;
+        const gridSize = 64;
+        for (let x = this.worldX; x < this.worldX + this.width; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, this.worldY);
+            ctx.lineTo(x, this.worldY + this.height);
+            ctx.stroke();
+        }
+        for (let y = this.worldY; y < this.worldY + this.height; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(this.worldX, y);
+            ctx.lineTo(this.worldX + this.width, y);
+            ctx.stroke();
+        }
+
+        // Draw walls
+        this.walls.forEach(w => w.draw(ctx));
+
+        // Draw doors
+        this.doors.forEach(d => d.draw(ctx));
+
+        // Draw modifier indicator
+        if (this.modifier && this.modifier !== 'none') {
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(ROOM_MODIFIERS[this.modifier].name.toUpperCase(),
+                this.worldX + this.width/2, this.worldY + 40);
+        }
+    }
+}
+
+// --- DUNGEON GENERATION ---
+function generateDungeon(floorNum) {
+    const dungeon = {
+        floor: floorNum,
+        rooms: [],
+        currentRoomIndex: 0
+    };
+
+    // Book-accurate floor structure:
+    // Entry → Combat Rooms → Safe Room (Pub) → [Boss on floor 3,6,9] → Stairwell
+    const roomSequence = ['start'];
+    const combatRooms = ['small_square', 'long_corridor', 'L_shaped'];
+
+    // Add 2-3 combat rooms based on floor
+    const numCombatRooms = 2 + Math.min(1, Math.floor(floorNum / 3));
+    for (let i = 0; i < numCombatRooms; i++) {
+        roomSequence.push(combatRooms[Math.floor(Math.random() * combatRooms.length)]);
+    }
+
+    // Safe Room (The Prancing Princess) - always present
+    roomSequence.push('safe_room');
+
+    // Boss room on floors 3, 6, 9 (end of each act)
+    if (floorNum % 3 === 0) {
+        roomSequence.push('arena');
+    }
+
+    // Stairwell chamber (exit)
+    roomSequence.push('exit');
+
+    // Place rooms in a line - all rooms now have same height (600px)
+    let currentX = 0;
+    const currentY = 0; // All rooms at same Y since they're all 600px tall
+
+    roomSequence.forEach((templateName, index) => {
+        const template = ROOM_TEMPLATES[templateName];
+        const room = new Room(template, index, currentX, currentY);
+
+        // Apply random modifier (30% chance, not on start room)
+        if (index > 0 && Math.random() < 0.3) {
+            const modKeys = Object.keys(ROOM_MODIFIERS).filter(k => k !== 'none');
+            room.modifier = modKeys[Math.floor(Math.random() * modKeys.length)];
+            ROOM_MODIFIERS[room.modifier].apply(room);
+        }
+
+        dungeon.rooms.push(room);
+
+        // Move position for next room (no gap - doors connect directly)
+        currentX += template.width;
+    });
+
+    // Connect rooms with doors
+    for (let i = 0; i < dungeon.rooms.length - 1; i++) {
+        dungeon.rooms[i].addDoor('right', 0.5, i + 1);
+        dungeon.rooms[i + 1].addDoor('left', 0.5, i);
+    }
+
+    return dungeon;
+}
+
+function getCurrentRoom() {
+    if (!currentDungeon || !currentDungeon.rooms) return null;
+    return currentDungeon.rooms[currentRoomIndex];
+}
+
+function checkWallCollision(entity, radius) {
+    const room = getCurrentRoom();
+    if (!room) return;
+
+    room.walls.forEach(wall => {
+        if (wall.collidesCircle(entity.pos.x, entity.pos.y, radius)) {
+            wall.pushOut(entity, radius);
+        }
+    });
+}
+
+function checkDoorCollision(px, py) {
+    const room = getCurrentRoom();
+    if (!room) return null;
+
+    for (const door of room.doors) {
+        if (door.active && door.contains(px, py)) {
+            return door;
+        }
+    }
+    return null;
+}
+
+function transitionToRoom(roomIndex) {
+    if (roomIndex < 0 || roomIndex >= currentDungeon.rooms.length) return;
+
+    // Set cooldown to prevent immediately going back through the door we came from
+    roomTransitionCooldown = 2.0; // 2 second cooldown (increased to prevent bouncing)
+    playerGraceTimer = 3.0; // 3 seconds of invulnerability when entering a room
+
+    previousRoomIndex = currentRoomIndex; // Track where we came from
+    currentRoomIndex = roomIndex;
+    const room = getCurrentRoom();
+    room.explored = true;
+
+    // Position player at center of room (no offset - was causing collision issues)
+    const center = room.getCenter();
+    console.log(`[DEBUG] Transitioning to room ${roomIndex} - setting player pos to (${center.x}, ${center.y})`);
+    player.pos = new Vector2(center.x, center.y);
+    donut.pos = new Vector2(center.x - 30, center.y);
+    if (mongo) mongo.pos = new Vector2(center.x + 30, center.y);
+
+    // Clear projectiles and effects when changing rooms
+    projectiles = [];
+    effects = [];
+
+    // Spawn enemies if room not cleared - spawn them AWAY from player
+    if (!room.cleared && room.template.spawns > 0) {
+        const numEnemies = room.template.spawns + Math.floor(floor / 2);
+        for (let i = 0; i < numEnemies; i++) {
+            let spawnPos;
+            // Try to spawn at least 200px from player
+            for (let attempt = 0; attempt < 15; attempt++) {
+                spawnPos = room.getSpawnPoint();
+                const distToPlayer = Math.sqrt(
+                    Math.pow(spawnPos.x - player.pos.x, 2) +
+                    Math.pow(spawnPos.y - player.pos.y, 2)
+                );
+                if (distToPlayer >= 200) break;
+            }
+            const types = ['goblin', 'goblin', 'bat'];
+            if (floor >= 2) types.push('kobold');
+            const type = types[Math.floor(Math.random() * types.length)];
+            enemies.push(new Enemy(spawnPos.x, spawnPos.y, type));
+        }
+
+        if (room.template.isBossRoom) {
+            const bossPos = room.getCenter();
+            enemies.push(new Enemy(bossPos.x, bossPos.y, 'boss'));
+            showAnnouncement("BOSS ROOM", "PREPARE FOR BATTLE", "#ff0000", "boss");
+        }
+    }
+
+    // Spawn exit portal if this is exit room and cleared
+    if (room.template.hasExit && room.cleared) {
+        const center = room.getCenter();
+        portals.push(new Stairway(center.x, center.y));
+    }
+
+    // Check if this is a Safe Room (The Prancing Princess / Pub)
+    if (room.template.isSafeRoom) {
+        // Teleport player fully inside room first (past the door)
+        player.pos = new Vector2(center.x, center.y);
+        donut.pos = new Vector2(center.x - 30, center.y);
+        if (mongo) mongo.pos = new Vector2(center.x + 30, center.y);
+
+        // Show entry message and fade to safe room UI
+        logMessage("System", `Welcome to ${room.template.name}!`, "log-achievement");
+        showAnnouncement("SAFE ROOM", room.template.name, "#00ff00");
+        speakSystem("Safe Room. Rest and prepare.");
+
+        // Fade screen to black then show UI
+        const fadeOverlay = document.createElement('div');
+        fadeOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#000;opacity:0;z-index:999;transition:opacity 0.5s;';
+        document.body.appendChild(fadeOverlay);
+
+        setTimeout(() => fadeOverlay.style.opacity = '1', 50);
+        setTimeout(() => {
+            enterSafeRoom();
+            fadeOverlay.remove();
+        }, 600);
+        return;
+    }
+
+    // Visual feedback for room entry
+    logMessage("System", `Entered: ${room.template.name}`, "log-system");
+    if (!room.cleared && room.template.spawns > 0) {
+        // Combat room - show room name with enemies count
+        const enemyCount = room.template.spawns + Math.floor(floor / 2);
+        showAnnouncement(room.template.name.toUpperCase(), `${enemyCount} ENEMIES`, "#ff4444");
+    }
+    if (room.modifier && room.modifier !== 'none') {
+        logMessage("System", `Modifier: ${ROOM_MODIFIERS[room.modifier].desc}`, "log-achievement");
+    }
+
+    // Screen flash effect for room entry
+    screenshake = 3;
+}
+
+class Mongo extends Entity {
+    constructor(x, y) {
+        super(x, y, 60, SPRITES.mongo);
+        this.speed = 180;
+        this.target = null;
+        this.attackCooldown = 0;
+    }
+    update(dt) {
+        if (!donut || !player) return;
+
+        // Find nearest enemy
+        let closest = null;
+        let minDist = 300; // Attack range
+        enemies.forEach(e => {
+            let d = e.pos.dist(this.pos);
+            if (d < minDist) { minDist = d; closest = e; }
+        });
+
+        this.isMoving = true;
+        
+        if (closest) {
+            // Chase enemy
+            let dir = closest.pos.sub(this.pos).normalize();
+            this.pos = this.pos.add(dir.scale(this.speed * dt));
+            this.facingLeft = dir.x < 0;
+            
+            // Attack
+            if (this.pos.dist(closest.pos) < 50 && this.attackCooldown <= 0) {
+                closest.takeDamage(25, false); // Bite
+                this.attackCooldown = 0.8;
+                playSound('kick'); // Reuse sound for bite snap
+                effects.push(new Effect(closest.pos.x, closest.pos.y, '🦷', 40, 0.2));
+            }
+        } else {
+            // Return to Donut
+            let diff = donut.pos.sub(this.pos);
+            if (diff.mag() > 80) {
+                this.pos = this.pos.add(diff.normalize().scale(this.speed * 1.2 * dt));
+                this.facingLeft = diff.x < 0;
+            } else {
+                this.isMoving = false;
+            }
+        }
+        
+        if (this.attackCooldown > 0) this.attackCooldown -= dt;
+
+        // Keep Mongo inside room bounds
+        const room = getCurrentRoom();
+        if (room) room.containEntity(this, this.size / 2, false);
+    }
+}
+
+class Player extends Entity {
+    constructor() {
+        super(0, 0, 45, SPRITES.carl);
+        this.maxHp = 100; this.hp = 100; this.xp = 0; this.lvl = 1; this.xpToLevel = 100;
+        this.inventory = [{ item: ITEMS.BOMB, count: 3 }, { item: null, count: 0 }, { item: null, count: 0 }];
+        // NEW: Base Stats System
+        this.attributes = { str: 10, dex: 10, con: 10, int: 10, cha: 10 };
+        this.stats = { baseSpeed: 250, speedMult: 1.0, kickDamage: 50, kickCooldownMax: 0.5, dmgMult: 1.0 };
+        this.kickCooldown = 0; this.invulnerable = 0; this.facingLeft = false; this.rageTimer = 0; this.lightRadius = 250; 
+        this.class = null; this.guild = null; this.lootBoxes = 0;
+        this.recalcStats();
+    }
+    
+    recalcStats() {
+        // Base Stats calculations
+        this.maxHp = 100 + (this.attributes.con - 10) * 10;
+        this.stats.kickDamage = 50 + (this.attributes.str - 10) * 5;
+        this.stats.baseSpeed = 250 + (this.attributes.dex - 10) * 10;
+        // CD reduction based on Int (capped)
+        let cdReduc = Math.min(0.5, (this.attributes.int - 10) * 0.02);
+        this.stats.kickCooldownMax = 0.5 * (1 - cdReduc);
+        
+        if (this.hp > this.maxHp) this.hp = this.maxHp;
+        
+        // Safety check if called from constructor
+        if(typeof player !== 'undefined') updateHealthUI();
+    }
+
+    update(dt) {
+        if (this.invulnerable > 0) this.invulnerable -= dt;
+        if (this.kickCooldown > 0) this.kickCooldown -= dt;
+        if (this.rageTimer > 0) { this.rageTimer -= dt; if(this.rageTimer <= 0) this.stats.dmgMult = 1.0; }
+        let input = new Vector2(0, 0);
+        if (keys['KeyW'] || keys['ArrowUp']) input.y -= 1;
+        if (keys['KeyS'] || keys['ArrowDown']) input.y += 1;
+        if (keys['KeyA'] || keys['ArrowLeft']) input.x -= 1;
+        if (keys['KeyD'] || keys['ArrowRight']) input.x += 1;
+        if (joystick.active) { input.x = joystick.dx; input.y = joystick.dy; }
+        this.isMoving = input.mag() > 0;
+        if (this.isMoving) {
+            if (input.mag() > 1) input = input.normalize();
+            let currentSpeed = this.stats.baseSpeed * this.stats.speedMult;
+            if(this.rageTimer > 0) currentSpeed *= 1.2;
+
+            // DEBUG: Log movement info when pressing right
+            if (input.x > 0 && Math.random() < 0.05) {
+                console.log(`[DEBUG] Moving right - pos: (${this.pos.x.toFixed(1)}, ${this.pos.y.toFixed(1)}), speed: ${currentSpeed.toFixed(1)}, dt: ${dt.toFixed(3)}, input: (${input.x.toFixed(2)}, ${input.y.toFixed(2)})`);
+            }
+
+            this.pos = this.pos.add(input.scale(currentSpeed * dt));
+            this.facingLeft = input.x < 0;
+            if (Math.random() < 0.1) effects.push(new Particle(this.pos.x, this.pos.y + 20, '#555', 4, 20));
+            // Wall collision - RE-ENABLED after fixing Vector2 mutation bug
+            checkWallCollision(this, this.size / 2);
+        }
+        // Door transition check (with cooldown to prevent loops)
+        if (roomTransitionCooldown <= 0) {
+            const door = checkDoorCollision(this.pos.x, this.pos.y);
+            if (door) {
+                if (enemies.length === 0) {
+                    console.log(`[DEBUG] Transitioning to room ${door.targetRoomIndex}`);
+                    transitionToRoom(door.targetRoomIndex);
+                } else {
+                    // DEBUG: Show why door won't work
+                    if (Math.random() < 0.02) {
+                        console.log(`[DEBUG] Door detected but blocked - ${enemies.length} enemies remaining`);
+                    }
+                }
+            }
+        }
+        // Position limit - safety clamp to prevent infinite coordinates
+        const limit = 2000;
+        this.pos = new Vector2(
+            Math.max(-limit, Math.min(limit, this.pos.x)),
+            Math.max(-limit, Math.min(limit, this.pos.y))
+        );
+        
+        // Check health achievement
+        achievementState.hp = this.hp;
+        checkAchievements();
+    }
+    kick() {
+        if (this.kickCooldown > 0) return;
+        this.kickCooldown = this.stats.kickCooldownMax; playSound('kick'); effects.push(new Effect(this.pos.x, this.pos.y, '🦶', 70, 0.2)); addChatMessage('kick'); screenshake = 5;
+        enemies.forEach(e => { if (e.pos.dist(this.pos) < 100) { e.takeDamage(this.stats.kickDamage * this.stats.dmgMult, true); let dir = e.pos.sub(this.pos).normalize(); e.pos = e.pos.add(dir.scale(120)); e.stunned = 0.5; } });
+    }
+    useInventory(slotIdx) {
+        let slot = this.inventory[slotIdx]; if (!slot.item || slot.count <= 0) return;
+        let used = false;
+        if (slot.item.id === 'bomb') { projectiles.push(new Bomb(this.pos.x, this.pos.y)); used = true; achievementState.bombUsed = true; checkAchievements(); }
+        else if (slot.item.id === 'potion') { this.hp = Math.min(this.hp + 50, this.maxHp); updateHealthUI(); logMessage("System", "Glurp.", "log-system"); used = true; }
+        else if (slot.item.id === 'trap') { effects.push(new Trap(this.pos.x, this.pos.y)); logMessage("System", "Trap set.", "log-system"); used = true; }
+        else if (slot.item.id === 'steroid') { this.stats.dmgMult = 2.0; this.rageTimer = 10.0; logMessage("System", "Rage!", "log-system"); used = true; }
+        else if (slot.item.id === 'plat') { score += 5000; logMessage("System", "PLATINUM REWARD.", "log-achievement"); speakSystem("Reward."); used = true; }
+        else if (slot.item.id === 'gate') {
+            // Nuke everything
+            enemies.forEach(e => e.takeDamage(9999, false));
+            screenshake = 50;
+            playSound('explode');
+            showAnnouncement("DOOMSDAY", "GATE OPENED", "#ff0000");
+            logMessage("System", "You used the Gate. Overkill much?", "log-achievement");
+            used = true;
+        }
+
+        if (used) { slot.count--; if (slot.count <= 0) slot.item = null; updateInventoryUI(); }
+    }
+    addItem(itemType) { for (let s of this.inventory) { if (s.item && s.item.id === itemType.id) { s.count++; updateInventoryUI(); return true; } } for (let s of this.inventory) { if (!s.item) { s.item = itemType; s.count = 1; updateInventoryUI(); return true; } } return false; }
+    takeDamage(amount) { if (this.invulnerable > 0) return; this.hp -= amount; this.invulnerable = 1.0; updateHealthUI(); playSound('hit'); screenshake = 3; for(let i=0; i<5; i++) effects.push(new Particle(this.pos.x, this.pos.y, '#f00', 5, 100)); if (this.hp <= 0) gameOver("Killed by a dungeon creep."); }
+    gainXp(amount) { this.xp += amount; if (this.xp >= this.xpToLevel) { this.xp -= this.xpToLevel; this.lvl++; this.xpToLevel = Math.floor(this.xpToLevel * 1.5); 
+        // Stat Growth on Level Up
+        this.attributes.str += 2; this.attributes.dex += 2; this.attributes.con += 2; this.attributes.int += 1;
+        this.recalcStats();
+        updateXpUI(); showAnnouncement("LEVEL UP!", "STATS INCREASED", "#00ff00"); speakSystem(SYSTEM_QUOTES.level); triggerLevelUp(); } else updateXpUI(); }
+}
+
+class Donut extends Entity {
+    constructor() { super(0, 0, 35, '🐈'); this.cooldown = 0; this.fireRate = 1.5; this.charmChance = 0.0; this.glow = true; this.glowColor = '#fff'; }
+    update(dt, player) {
+        if (!player) return;
+        let diff = player.pos.sub(this.pos);
+        if (diff.mag() > 60) { this.pos = this.pos.add(diff.normalize().scale((diff.mag()-60)*4 * dt)); this.facingLeft = diff.x < 0; this.isMoving = true; } else { this.isMoving = false; }
+        this.cooldown -= dt;
+        if (this.cooldown <= 0) { let closest = enemies.reduce((prev, curr) => (prev ? prev.pos.dist(this.pos) : 999) < curr.pos.dist(this.pos) ? prev : curr, null); if (closest && closest.pos.dist(this.pos) < 500) { this.cooldown = this.fireRate; projectiles.push(new MagicMissile(this.pos.x, this.pos.y, closest, this.charmChance)); } }
+        // Keep Donut inside room bounds
+        const room = getCurrentRoom();
+        if (room) room.containEntity(this, this.size / 2, false);
+    }
+}
+
+class Enemy extends Entity {
+    constructor(x, y, type) {
+        let sprite = '👺', hp = 40, speed = 90, size = 45, xp = 10;
+        if (type === 'bat') { sprite = '🦇'; speed = 150; hp = 15; size = 30; xp = 5; }
+        if (type === 'kobold') { sprite = '🦎'; speed = 75; hp = 30; size = 40; xp = 15; }
+        if (type === 'boss') { sprite = '👹'; speed = 65; hp = 500; size = 100; xp = 200; }
+        if (type === 'mimic') { sprite = '👾'; speed = 120; hp = 80; size = 40; xp = 50; }
+        super(x, y, size, sprite);
+        this.type = type; this.hp = hp; this.maxHp = hp; this.speed = speed; this.xpValue = xp;
+        this.attackTimer = 0; this.hasTriggeredMordecai = false;
+        // New AI behaviors
+        this.aiState = 'lurking'; // lurking, stalking, attacking, fleeing
+        this.lurkTimer = 1.5 + Math.random() * 2; // Wait before engaging
+        this.strafeDir = Math.random() < 0.5 ? 1 : -1; // Circle direction
+        this.strafeTimer = 2 + Math.random() * 2; // How long to circle before rushing
+        this.aggroRange = 200 + Math.random() * 100; // When to switch to attack
+    }
+    update(dt, player) {
+        if (!player) return;
+        if(!this.hasTriggeredMordecai) { if(this.type === 'kobold') triggerMordecai('kobold'); if(this.type === 'boss') triggerMordecai('boss'); this.hasTriggeredMordecai = true; }
+        if (this.stunned > 0) { this.stunned -= dt; return; }
+
+        let diff = player.pos.sub(this.pos);
+        let dist = diff.mag();
+        const room = getCurrentRoom();
+        let effectiveSpeed = this.speed;
+        if (room) effectiveSpeed *= room.enemySpeedMult;
+
+        // Kobolds have special ranged behavior
+        if (this.type === 'kobold') {
+            if (dist > 350) this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+            else if (dist < 200) this.pos = this.pos.sub(diff.normalize().scale(effectiveSpeed * 0.8 * dt));
+            else this.isMoving = false;
+            this.attackTimer -= dt;
+            if (this.attackTimer <= 0 && dist < 450) {
+                this.attackTimer = 3.0;
+                projectiles.push(new Arrow(this.pos.x, this.pos.y, diff.normalize()));
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Bats are erratic - they swoop and dive
+        if (this.type === 'bat') {
+            this.isMoving = true;
+            // Erratic movement with sine waves
+            let swoopAngle = Math.sin(gameTime * 5 + this.bounceOffset * 10) * 0.8;
+            let swoopDir = new Vector2(
+                Math.cos(Math.atan2(diff.y, diff.x) + swoopAngle),
+                Math.sin(Math.atan2(diff.y, diff.x) + swoopAngle)
+            );
+            this.pos = this.pos.add(swoopDir.scale(effectiveSpeed * dt));
+            // Bats bob up and down
+            this.z = Math.sin(gameTime * 8 + this.bounceOffset) * 15;
+            if (dist < (this.size + player.size)/2 + 10) {
+                if (playerGraceTimer <= 0) player.takeDamage(5); // Less damage but harder to hit
+                this.stunned = 0.3;
+            }
+            this.facingLeft = diff.x < 0;
+            checkWallCollision(this, this.size / 2);
+            if (room) room.containEntity(this, this.size / 2, false);
+            return;
+        }
+
+        // Bosses always aggressive
+        if (this.type === 'boss') {
+            this.aiState = 'attacking';
+        }
+
+        // State machine for melee enemies
+        switch(this.aiState) {
+            case 'lurking':
+                // Wait and watch - don't move yet
+                this.isMoving = false;
+                this.lurkTimer -= dt;
+                // Menacing sway
+                this.angle = Math.sin(gameTime * 3 + this.bounceOffset) * 0.1;
+                if (this.lurkTimer <= 0 || dist < 150) {
+                    this.aiState = 'stalking';
+                }
+                break;
+
+            case 'stalking':
+                // Circle/strafe around player, closing distance slowly
+                this.strafeTimer -= dt;
+                this.isMoving = true;
+                // Calculate perpendicular direction for strafing
+                let perpDir = new Vector2(-diff.y, diff.x).normalize().scale(this.strafeDir);
+                // Also move toward player slowly
+                let towardPlayer = diff.normalize().scale(0.3);
+                let moveDir = perpDir.add(towardPlayer).normalize();
+                this.pos = this.pos.add(moveDir.scale(effectiveSpeed * 0.6 * dt));
+                // Switch strafe direction occasionally
+                if (Math.random() < 0.01) this.strafeDir *= -1;
+                // Switch to attacking when close enough or timer runs out
+                if (this.strafeTimer <= 0 || dist < this.aggroRange) {
+                    this.aiState = 'attacking';
+                }
+                break;
+
+            case 'attacking':
+                // Rush the player!
+                this.isMoving = true;
+                this.pos = this.pos.add(diff.normalize().scale(effectiveSpeed * dt));
+                if (dist < (this.size + player.size)/2) {
+                    if (playerGraceTimer <= 0) player.takeDamage(10);
+                    this.stunned = 0.5;
+                    // After hitting, some enemies back off briefly
+                    if (Math.random() < 0.3) {
+                        this.aiState = 'stalking';
+                        this.strafeTimer = 1 + Math.random();
+                    }
+                }
+                break;
+        }
+
+        this.facingLeft = diff.x < 0;
+        checkWallCollision(this, this.size / 2);
+        if (room) room.containEntity(this, this.size / 2, false);
+    }
+    takeDamage(amount, isSmush) {
+        this.hp -= amount;
+        floorStats.damageDealt += amount; // Track damage for recap
+        for(let i=0; i<3; i++) effects.push(new Particle(this.pos.x, this.pos.y, COLORS.blood, 4, 80));
+        // Drop Chance for loose resources (Immediate Survival)
+        if(this.hp > 0 && Math.random() < 0.05) loot.push(new LootBox(this.pos.x, this.pos.y, false, true)); // True = loose resource
+
+        if (this.hp <= 0 && !this.dead) {
+            this.dead = true; score += this.xpValue; viewers += (this.type === 'boss' ? 500 : 5);
+            floorStats.kills++; // Track kills for recap
+            ui.score.innerText = `SCORE: ${score}`; ui.viewers.innerText = `${viewers} Viewers`;
+            if (player) player.gainXp(this.xpValue);
+            
+            if (this.type === 'boss') { achievementState.bossKilled = true; checkAchievements(); }
+
+            if (isSmush) { 
+                achievementState.smushCount++;
+                checkAchievements();
+                
+                aiFavor += 10; playSound('smush'); screenshake = 5; for(let i=0; i<10; i++) effects.push(new Particle(this.pos.x, this.pos.y, COLORS.blood, 5, 120)); decals.push(new Decal(this.pos.x, this.pos.y, this.icon, this.size)); if (aiFavor % 50 === 0) { speakSystem(SYSTEM_QUOTES.smush); showAnnouncement(SYSTEM_QUOTES.smush, "The AI is watching.", "#ffaa00", "smush"); } if (aiFavor >= 100) { loot.push(new LootBox(this.pos.x, this.pos.y, true, false)); aiFavor = 0; speakSystem("Sponsor Box Dropped."); } 
+            } else { aiFavor += 1; effects.push(new Effect(this.pos.x, this.pos.y, SPRITES.skull, 30, 0.5)); }
+            if (Math.random() < 0.25 || this.type === 'boss') loot.push(new LootBox(this.pos.x, this.pos.y, false, false));
+            addChatMessage('kill'); if(Math.random() < 0.2) triggerPartyChat('combat');
+        }
+    }
+}
+
+class Projectile extends Entity { constructor(x, y, size, icon, lifetime) { super(x, y, size, icon); this.lifetime = lifetime; this.glow = true; } update(dt) { this.lifetime -= dt; if (this.lifetime <= 0) this.dead = true; } }
+class MagicMissile extends Projectile { constructor(x, y, target, charm) { super(x, y, 15, '✨', 2); this.target = target; this.charm = charm; this.glowColor = '#ff00ff'; } update(dt) { super.update(dt); if(Math.random()<0.5) effects.push(new Particle(this.pos.x, this.pos.y, '#ff00ff', 2, 20)); if (this.target && !this.target.dead) { let dir = this.target.pos.sub(this.pos).normalize(); this.pos = this.pos.add(dir.scale(500 * dt)); if (this.pos.dist(this.target.pos) < 20) { this.target.takeDamage(20, false); if (Math.random() < this.charm) this.target.stunned = 3.0; this.target = null; this.dead = true; } } else { this.target = null; this.dead = true; } } }
+class Arrow extends Projectile { constructor(x, y, dir) { super(x, y, 20, '🗡️', 3); this.dir = dir; this.angle = Math.atan2(dir.y, dir.x); this.glowColor = '#fff'; } update(dt) { super.update(dt); this.pos = this.pos.add(this.dir.scale(350 * dt)); if (player && this.pos.dist(player.pos) < 20) { if (playerGraceTimer <= 0) player.takeDamage(15); this.dead = true; } } }
+class Bomb extends Projectile { constructor(x, y) { super(x, y, 30, '💣', 2); this.timer = 0; this.glowColor = '#ffaa00'; } update(dt) { super.update(dt); this.timer += dt * 10; this.size = 30 + Math.sin(this.timer) * 5; if (this.lifetime <= 0) { effects.push(new Effect(this.pos.x, this.pos.y, '💥', 200, 0.5)); playSound('explode'); screenshake = 15; enemies.forEach(e => { if (e.pos.dist(this.pos) < 180) e.takeDamage(100, true); }); this.dead = true; for(let i=0; i<20; i++) effects.push(new Particle(this.pos.x, this.pos.y, '#ffaa00', 6, 200)); } } }
+class Trap extends Entity { constructor(x, y) { super(x, y, 40, '🕸️'); this.life = 15; } update(dt) { this.life -= dt; if (this.life < 0) this.dead = true; enemies.forEach(e => { if (e.pos.dist(this.pos) < 40 && e.stunned <= 0) { e.stunned = 4.0; effects.push(new TextFloater(e.pos.x, e.pos.y - 40, "TRAPPED", "#ccc")); this.dead = true; } }); } }
+// Modified LootBox: Can be a box (for safe room) OR a loose resource (for immediate use)
+class LootBox extends Entity {
+    constructor(x, y, isPlat, isResource) {
+        let icon = isPlat ? '📦' : '🎁';
+        let resourceItem = null;
+        if(isResource) {
+            // Decide item NOW and show matching icon
+            resourceItem = Math.random() < 0.5 ? ITEMS.POTION : ITEMS.BOMB;
+            icon = resourceItem.icon;
+        }
+        super(x, y, 35, icon);
+        this.isPlat = isPlat;
+        this.isResource = isResource;
+        this.resourceItem = resourceItem; // Store what item this will give
+        this.glow = true;
+        this.glowColor = isPlat ? '#ffffff' : (isResource ? '#00ff00' : '#ffaa00');
+        // 5% chance to be a mimic if it's a standard box
+        this.isMimic = !isPlat && !isResource && Math.random() < 0.05;
+    }
+}
+
+// --- Game Logic ---
+let portals = [];
+let mongo = null;
+
+/**
+ * Initializes the game by setting up event listeners and starting the game loop.
+ */
+function init() {
+    window.addEventListener('resize', resize); resize();
+    window.addEventListener('keydown', e => { 
+        keys[e.code] = true; 
+        if (e.code === 'KeyC') toggleStats();
+        if (gameState === 'PLAY' || gameState === 'EXPLORE') { 
+            if (e.code === 'Space') player?.kick(); 
+            if (e.code === 'Digit1') player?.useInventory(0); 
+            if (e.code === 'Digit2') player?.useInventory(1); 
+            if (e.code === 'Digit3') player?.useInventory(2); 
+        } 
+    });
+    window.addEventListener('keyup', e => keys[e.code] = false); setupTouch();
+    ui.start.querySelector('#start-btn').addEventListener('click', () => { initAudio(); startGame(); });
+    ui.over.querySelector('#restart-btn').addEventListener('click', startGame);
+    requestAnimationFrame(loop);
+}
+
+function resize() { width = window.innerWidth; height = window.innerHeight; canvas.width = width; canvas.height = height; if ('ontouchstart' in window || navigator.maxTouchPoints > 0) document.getElementById('mobile-controls').style.display = 'block'; }
+
+/**
+ * Starts a new game by resetting all game state, creating player entities, and beginning the first wave.
+ */
+function startGame() {
+    gameState = 'PLAY'; score = 0; floor = 1; wave = 1; viewers = 12; gameTime = 0; aiFavor = 0;
+    floorStats = { kills: 0, damageDealt: 0, damageTaken: 0, lootCollected: 0, timeSpent: 0 }; // Reset floor stats
+    ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.upgrade.classList.add('hidden');
+    player = new Player(); donut = new Donut(); mongo = null;
+    enemies = []; projectiles = []; effects = []; loot = []; portals = []; decals = [];
+
+    // Generate dungeon for floor 1
+    currentDungeon = generateDungeon(floor);
+    currentRoomIndex = 0;
+
+    // Place player in first room
+    const firstRoom = currentDungeon.rooms[0];
+    firstRoom.explored = true;
+    const center = firstRoom.getCenter();
+    player.pos = center;
+    donut.pos = new Vector2(center.x - 30, center.y);
+    playerGraceTimer = 3.0; // 3 seconds grace period at game start
+
+    // Spawn enemies in first room
+    if (firstRoom.template.spawns > 0) {
+        const numEnemies = firstRoom.template.spawns + Math.floor(floor / 2);
+        for (let i = 0; i < numEnemies; i++) {
+            const spawnPos = firstRoom.getSpawnPoint();
+            const types = ['goblin', 'goblin', 'bat'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            enemies.push(new Enemy(spawnPos.x, spawnPos.y, type));
+        }
+    }
+
+    updateHealthUI(); updateXpUI(); updateInventoryUI();
+    ui.score.innerText = 'SCORE: 0'; ui.viewers.innerText = '12 Viewers'; ui.log.innerHTML = ''; ui.chat.innerHTML = ''; ui.guildTag.innerText = '';
+    ui.boxes.innerText = 'BOXES: 0';
+    logMessage("System", "Welcome to Floor 1.", "log-system"); speakSystem(SYSTEM_QUOTES.start); addChatMessage('idle'); lastTime = performance.now();
+    startWave();
+}
+
+function startWave() {
+    gameState = 'PLAY';
+    floorTimeLeft = Math.max(60, 200 - (floor * 10));
+
+    // With room system, enemies spawn per room, not per wave
+    // Just set up the floor timer and initial room
+    waveConfig.active = false; // Disable old wave spawning
+
+    const room = getCurrentRoom();
+    if (room) {
+        ui.wave.innerText = `FLOOR ${floor}`;
+        ui.enemiesLeft.innerText = `${enemies.length} Foe(s)`;
+        showAnnouncement(`FLOOR ${floor}`, room.template.name, "#ff0000", "wave");
+        speakSystem(`Floor ${floor}.`);
+    }
+}
+
+function updateWaveLogic(dt) {
+    floorTimeLeft -= dt; if (floorTimeLeft <= 0) { gameOver("THE FLOOR COLLAPSED."); return; }
+    let mins = Math.floor(floorTimeLeft / 60); let secs = Math.floor(floorTimeLeft % 60); ui.timer.innerText = `${mins < 10 ? '0'+mins : mins}:${secs < 10 ? '0'+secs : secs}`;
+
+    // Boss bar
+    let boss = enemies.find(e => e.type === 'boss');
+    if (boss) { ui.bossBar.style.display = 'block'; ui.bossFill.style.width = (boss.hp / boss.maxHp * 100) + "%"; }
+    else { ui.bossBar.style.display = 'none'; }
+
+    // Update enemy count for room-based gameplay
+    let living = enemies.filter(e => !e.dead).length;
+    ui.enemiesLeft.innerText = `${living} Foe(s)`;
+
+    // Room-based: wave system disabled, room clearing handled in update()
+}
+
+function endWave() {
+    waveConfig.active = false; gameState = 'EXPLORE';
+    logMessage("System", "Wave Complete. Stairwell unlocked.", "log-achievement"); speakSystem("Wave Complete.");
+    showAnnouncement("WAVE CLEARED", "STAIRWELL OPEN", "#00ff00");
+    let px = player.pos.x + 200 * (Math.random() < 0.5 ? 1 : -1); let py = player.pos.y;
+    portals.push(new Stairway(px, py)); playSound('portal');
+    loot.push(new LootBox(player.pos.x + 100, player.pos.y, false, false)); // Guaranteed box
+}
+
+function enterSafeRoom() {
+    gameState = 'SAFEROOM'; ui.safeRoom.classList.remove('hidden'); ui.safeScore.innerText = score; ui.safeFloor.innerText = floor;
+    
+    // Loot UI Setup
+    ui.safeLootCount.innerText = player.lootBoxes;
+    ui.lootResults.innerText = "";
+    ui.openLootBtn.disabled = player.lootBoxes <= 0;
+
+    let roomIndex = Math.min(floor - 1, SAFE_ROOM_NAMES.length - 1);
+    ui.safeRoomTitle.innerText = SAFE_ROOM_NAMES[roomIndex];
+    
+    if (floor === 1) triggerMordecai('safe_room_1');
+    else if (floor === 2) triggerMordecai('safe_room_2');
+    else triggerMordecai('safe_room_3');
+    
+    if (floor <= 2) { ui.tutorialStatus.style.display = 'block'; ui.guildPanel.classList.add('hidden'); } 
+    else { ui.tutorialStatus.style.display = 'none'; ui.guildPanel.classList.remove('hidden'); }
+
+    if (floor === 1 && wave > 3 && !player.class) { ui.safeControls.classList.add('hidden'); ui.classSelect.classList.remove('hidden'); speakSystem("Select a Class."); } else { ui.safeControls.classList.remove('hidden'); ui.classSelect.classList.add('hidden'); }
+    if (player.guild) { ui.guildCreate.classList.add('hidden'); ui.guildActive.classList.remove('hidden'); ui.activeGuildName.innerText = player.guild; }
+    else { ui.guildCreate.classList.remove('hidden'); ui.guildActive.classList.add('hidden'); }
+    updateSafeRoomUI();
+}
+
+// Updated openAllLoot function with race condition fix
+async function openAllLoot() {
+    if (isOpeningLoot) return;
+    if (!player || player.lootBoxes <= 0) return;
+
+    isOpeningLoot = true;
+    ui.openLootBtn.disabled = true;
+    ui.lootResults.innerHTML = "<div style='color:#fff'>Processing Loot...</div>";
+
+    // Capture count and set to 0 immediately to prevent race
+    let boxesToOpen = player.lootBoxes;
+    player.lootBoxes = 0;
+    ui.safeLootCount.innerText = 0;
+    ui.boxes.innerText = `BOXES: 0`;
+
+    let totalScoreAdded = 0;
+    let itemsFoundCount = 0;
+
+    // Check bulk achievement
+    if (boxesToOpen >= 5) {
+        triggerAchievement(ACHIEVEMENTS.addict.title, ACHIEVEMENTS.addict.desc);
+        ACHIEVEMENTS.addict.done = true;
+    }
+
+    try {
+        for (let i = 1; i <= boxesToOpen; i++) {
+            // Show "Opening..." state
+            ui.lootResults.innerHTML = `<div style="font-size:30px; color:#aaa;">OPENING BOX ${i}/${boxesToOpen}...</div>`;
+
+            await new Promise(r => setTimeout(r, 1000)); // Suspense
+
+            let roll = Math.random();
+            let loot;
+
+            // Weighted roll
+            if (roll < 0.4) loot = LOOT_TABLE[Math.floor(Math.random() * 3)]; // Junk
+            else if (roll < 0.7) loot = LOOT_TABLE[3 + Math.floor(Math.random() * 2)]; // Common Items
+            else if (roll < 0.9) loot = LOOT_TABLE[5 + Math.floor(Math.random() * 2)]; // Rare
+            else loot = LOOT_TABLE[7]; // Epic
+
+            let color = "#aaa";
+            let icon = "";
+
+            if (loot.type === "item") {
+                icon = loot.item.icon;
+                if (player && player.addItem(loot.item)) {
+                    itemsFoundCount++;
+                    color = "#00ff00";
+                } else {
+                    score += 100;
+                    totalScoreAdded += 100;
+                    color = "#ffaa00";
+                }
+            } else {
+                icon = (loot.name.includes("Boxers") ? "🩳" : (loot.name.includes("Ring") ? "💍" : "💰"));
+                score += loot.score;
+                totalScoreAdded += loot.score;
+                if(loot.rarity === "Epic") color = "#a335ee";
+                else if(loot.rarity === "Trash") color = "#888";
+                else color = "#fff";
+            }
+
+            // Display Result - CINEMATIC
+            let displayHtml = `
+                <div class="loot-reveal-item" style="color:${color}">
+                    <div class="loot-icon">${icon}</div>
+                    <div class="loot-name">${loot.name}</div>
+                    <div class="loot-type">${loot.type === 'item' ? 'Added to Inventory' : '+' + loot.score + ' Score'}</div>
+                </div>
+            `;
+            ui.lootResults.innerHTML = displayHtml;
+
+            playSound('achievement'); // Better sound for loot
+            ui.score.innerText = `SCORE: ${score}`;
+
+            // Check Achievement
+            if (loot.rarity === "Epic" && !achievementState.foundEpic) {
+                 achievementState.foundEpic = true;
+                 triggerAchievement(ACHIEVEMENTS.lucky.title, ACHIEVEMENTS.lucky.desc);
+            }
+
+            await new Promise(r => setTimeout(r, 1500)); // Read time
+        }
+    } finally {
+        // Always cleanup, even if error occurs
+        isOpeningLoot = false;
+        ui.lootResults.innerHTML = `
+            <div style="color:#00ccff; font-size:30px;">ALL BOXES OPENED</div>
+            <div style="font-family:'VT323'; font-size:24px; color:#aaa;">Score: +${totalScoreAdded} | Items: +${itemsFoundCount}</div>
+        `;
+        speakSystem("Loot Processed.");
+        // Re-enable button if player has collected more boxes
+        if (player && player.lootBoxes > 0) {
+            ui.openLootBtn.disabled = false;
+        }
+    }
+}
+
+window.createGuild = function() {
+    let name = ui.guildInput.value;
+    if (name.length > 0 && score >= 500) {
+        score -= 500; player.guild = name; ui.guildTag.innerText = `<${name}>`;
+        ui.score.innerText = `SCORE: ${score}`;
+        logMessage("System", `Guild '${name}' Established.`, "log-achievement");
+        enterSafeRoom(); // Refresh UI
+    }
+}
+
+window.selectClass = function(type) {
+    if (type === 'primalist') { player.class = 'Primalist'; player.attributes.str += 10; player.attributes.con += 5; player.inventory[0] = { item: ITEMS.STEROID, count: 5 }; }
+    else if (type === 'magic') { player.class = 'Magic User'; player.attributes.int += 10; donut.fireRate = 0.5; player.inventory[0] = { item: ITEMS.POTION, count: 5 }; }
+    else if (type === 'demo') { player.class = 'Demolitionist'; player.attributes.dex += 5; player.attributes.str += 5; player.inventory[0] = { item: ITEMS.BOMB, count: 10 }; }
+    player.recalcStats();
+    ui.classDisplay.innerText = `[${player.class}]`; ui.classSelect.classList.add('hidden'); ui.safeControls.classList.remove('hidden'); speakSystem(`${player.class} selected.`); updateInventoryUI(); updateHealthUI();
+};
+
+window.toggleStats = function() {
+    if (ui.statsScreen.classList.contains('hidden')) {
+        // Open
+        ui.statsScreen.classList.remove('hidden');
+        ui.sheetClass.innerText = player.class || "None";
+        ui.sheetGuild.innerText = player.guild || "None";
+        
+        ui.valStr.innerText = player.attributes.str;
+        ui.valDex.innerText = player.attributes.dex;
+        ui.valCon.innerText = player.attributes.con;
+        ui.valInt.innerText = player.attributes.int;
+        ui.valCha.innerText = player.attributes.cha;
+        
+        ui.derKick.innerText = player.stats.kickDamage;
+        ui.derSpd.innerText = Math.round(player.stats.speedMult * 100) + "%";
+        ui.derHp.innerText = player.maxHp;
+        ui.derCd.innerText = Math.round((player.attributes.int - 10) * 2) + "%";
+        ui.derFav.innerText = "1.0x"; // Placeholder
+    } else {
+        ui.statsScreen.classList.add('hidden');
+    }
+}
+
+function updateSafeRoomUI() { 
+    if (!player) return;
+    let cost = 100; 
+    ui.healBtn.disabled = score < cost || player.hp >= player.maxHp; 
+    ui.safeScore.innerText = score; 
+}
+window.buyHeal = function() { 
+    if (!player) return;
+    let cost = 100; 
+    if (score >= cost && player.hp < player.maxHp) { 
+        score -= cost; player.hp = player.maxHp; 
+        updateHealthUI(); updateSafeRoomUI(); 
+        ui.score.innerText = `SCORE: ${score}`; 
+        logMessage("System", "Dirty Shirley consumed.", "log-loot"); 
+    } 
+};
+// Recap commentary - book-style System quotes
+const RECAP_COMMENTARY = [
+    "Not bad for a crawler in his underwear.",
+    "The viewers are entertained. For now.",
+    "Adequate performance. The sponsors are... satisfied.",
+    "Bold strategy. Stupid, but bold.",
+    "The betting pools are going wild!",
+    "Chat is demanding more explosions. As always.",
+    "Donut's approval rating just went up 3%.",
+    "Your death has been postponed. Temporarily.",
+    "The highlight reel will feature... questionable decisions.",
+    "Remarkably, you're still alive. The odds were not in your favor."
+];
+
+// Show the recap screen - "The Show Must Go On"
+window.showRecap = function() {
+    ui.safeRoom.classList.add('hidden');
+    ui.recapScreen.classList.remove('hidden');
+    gameState = 'RECAP';
+
+    // Populate stats
+    ui.recapFloor.innerText = floor;
+    ui.recapKills.innerText = floorStats.kills;
+    ui.recapDamage.innerText = Math.floor(floorStats.damageDealt);
+    ui.recapLoot.innerText = floorStats.lootCollected;
+
+    const mins = Math.floor(floorStats.timeSpent / 60);
+    const secs = Math.floor(floorStats.timeSpent % 60);
+    ui.recapTime.innerText = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+    ui.recapViewers.innerText = viewers;
+    ui.recapCommentary.innerText = `"${RECAP_COMMENTARY[Math.floor(Math.random() * RECAP_COMMENTARY.length)]}"`;
+
+    // Reset for next floor
+    ui.stairwellTimer.style.display = 'none';
+    ui.recapContinueBtn.style.display = 'block';
+
+    speakSystem("The Recap. Floor " + floor + " highlights.");
+};
+
+// Start the stairwell countdown - tension builder from the books
+window.startStairwellCountdown = function() {
+    ui.recapContinueBtn.style.display = 'none';
+    ui.stairwellTimer.style.display = 'block';
+    stairwellTimer = 10; // 10 second countdown
+
+    speakSystem("Stairwell closing in 10 seconds!");
+
+    const countdownInterval = setInterval(() => {
+        stairwellTimer--;
+        ui.stairwellCountdown.innerText = stairwellTimer;
+
+        if (stairwellTimer <= 3) {
+            ui.stairwellCountdown.style.color = '#ff0000';
+            playSound('hurt');
+        }
+
+        if (stairwellTimer <= 0) {
+            clearInterval(countdownInterval);
+            descendToNextFloor();
+        }
+    }, 1000);
+};
+
+// Actually descend to the next floor
+window.descendToNextFloor = function() {
+    ui.recapScreen.classList.add('hidden');
+    gameState = 'PLAY';
+
+    // Advance floor
+    floor++;
+    wave = 1;
+    logMessage("System", `Descended to Floor ${floor}.`, "log-achievement");
+    achievementState.floor = floor;
+    checkAchievements();
+
+    // Reset floor stats for new floor
+    floorStats = { kills: 0, damageDealt: 0, damageTaken: 0, lootCollected: 0, timeSpent: 0 };
+
+    // Check for Mongo unlock
+    if (floor === 3 && !mongo) {
+        mongo = new Mongo(player.pos.x, player.pos.y);
+        showAnnouncement("NEW COMPANION", "MONGO IS HERE", "#00ff00");
+        speakSystem("New Companion.");
+    }
+
+    enemies = []; projectiles = []; portals = []; decals = []; loot = [];
+
+    // Generate new dungeon for this floor
+    currentDungeon = generateDungeon(floor);
+    currentRoomIndex = 0;
+
+    // Place player in first room
+    const firstRoom = currentDungeon.rooms[0];
+    firstRoom.explored = true;
+    const center = firstRoom.getCenter();
+    player.pos = center;
+    donut.pos = new Vector2(center.x - 30, center.y);
+    if (mongo) mongo.pos = new Vector2(center.x + 30, center.y);
+    playerGraceTimer = 3.0; // Grace period when arriving at new floor
+
+    // Spawn enemies in first room
+    transitionToRoom(0);
+
+    lastTime = performance.now();
+    floorTimeLeft = Math.max(60, 200 - (floor * 10));
+    ui.wave.innerText = `FLOOR ${floor}`;
+    showAnnouncement(`FLOOR ${floor}`, currentDungeon.rooms.length + " ROOMS", "#ff0000");
+    speakSystem(`Floor ${floor}. ${currentDungeon.rooms.length} rooms to clear.`);
+};
+
+/**
+ * Main game loop that updates and renders the game each frame.
+ * @param {number} time - Current timestamp from requestAnimationFrame
+ */
+function loop(time) {
+    let dt = (time - lastTime) / 1000; lastTime = time; if (dt > 0.1) dt = 0.1;
+    if (screenshake > 0) { screenshake -= dt * 30; if (screenshake < 0) screenshake = 0; }
+    if (gameState === 'PLAY') { updateWaveLogic(dt); update(dt); draw(); }
+    else if (gameState === 'EXPLORE') {
+        floorTimeLeft -= dt; let mins = Math.floor(floorTimeLeft / 60); let secs = Math.floor(floorTimeLeft % 60); ui.timer.innerText = `${mins < 10 ? '0'+mins : mins}:${secs < 10 ? '0'+secs : secs}`; if (floorTimeLeft <= 0) { gameOver("THE FLOOR COLLAPSED."); return; }
+        update(dt); draw();
+        // Portal interaction - increased distance to 150, and only allow entry if no enemies
+        if (enemies.length === 0) {
+            portals.forEach(p => { if (player.pos.dist(p.pos) < 150) enterSafeRoom(); });
+        }
+    } else if (gameState === 'SAFEROOM' || gameState === 'PAUSE') draw();
+    requestAnimationFrame(loop);
+}
+
+/**
+ * Updates all game entities and handles collisions.
+ * @param {number} dt - Delta time since last update
+ */
+function update(dt) {
+    gameTime += dt; floorStats.timeSpent += dt; // Track time for recap
+    if (Math.random() < 0.05 && viewers > 12) viewers--; ui.viewers.innerText = `${viewers} Viewers`;
+    if (roomTransitionCooldown > 0) roomTransitionCooldown -= dt; // Decrement door transition cooldown
+    if (playerGraceTimer > 0) playerGraceTimer -= dt; // Decrement invulnerability timer
+    player.update(dt); donut.update(dt, player);
+    if(mongo) mongo.update(dt);
+
+    enemies.forEach(e => e.update(dt, player)); projectiles.forEach(p => p.update(dt)); effects.forEach(e => e.update(dt)); decals.forEach(e => e.update(dt)); portals.forEach(p => p.update(dt));
+    loot.forEach(l => { if (player.pos.dist(l.pos) < 50) { l.dead = true; collectLoot(l); } });
+    enemies = enemies.filter(e => !e.dead); projectiles = projectiles.filter(p => !p.dead); effects = effects.filter(e => !e.dead); loot = loot.filter(l => !l.dead); decals = decals.filter(d => !d.dead);
+    // Cap collections to prevent memory growth during long sessions
+    if (effects.length > MAX_EFFECTS) effects.splice(0, effects.length - MAX_EFFECTS);
+    if (decals.length > MAX_DECALS) decals.splice(0, decals.length - MAX_DECALS);
+
+    // Check if current room is cleared
+    const room = getCurrentRoom();
+    if (room && !room.cleared && enemies.length === 0) {
+        room.cleared = true;
+
+        // Only show cleared message and loot for combat rooms (spawns > 0)
+        if (room.template.spawns > 0) {
+            logMessage("System", `${room.template.name} cleared!`, "log-achievement");
+            playSound('portal');
+
+            // Spawn loot
+            const lootCount = 1 + Math.floor(Math.random() * 2);
+            for (let i = 0; i < lootCount; i++) {
+                const spawnPos = room.getSpawnPoint();
+                loot.push(new LootBox(spawnPos.x, spawnPos.y, false, false));
+            }
+        }
+
+        // If exit room, spawn stairwell portal immediately
+        if (room.template.hasExit) {
+            const center = room.getCenter();
+            portals.push(new Stairway(center.x, center.y));
+            showAnnouncement("FLOOR CLEARED", "STAIRWELL OPEN", "#00ff00");
+            speakSystem("Floor cleared. Stairwell open.");
+            gameState = 'EXPLORE';
+        }
+    }
+
+    let targetCamX = player.pos.x - width / 2; let targetCamY = player.pos.y - height / 2; camera.x = targetCamX + (Math.random()-0.5)*screenshake; camera.y = targetCamY + (Math.random()-0.5)*screenshake;
+}
+
+// Mini-Map Configuration
+const MINIMAP_SIZE = 160;
+const MINIMAP_MARGIN = 20; 
+const MINIMAP_TOP = 100; 
+const WORLD_TO_MAP_SCALE = 0.15; 
+
+function drawMiniMap(ctx) {
+    const mapX = width - MINIMAP_SIZE - MINIMAP_MARGIN;
+    const mapY = MINIMAP_TOP;
+
+    ctx.save();
+    
+    // Background and Grid (Book describes a holographic projection)
+    ctx.fillStyle = "rgba(0, 10, 0, 0.8)"; 
+    ctx.strokeStyle = "#005500"; 
+    ctx.lineWidth = 4;
+    ctx.fillRect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE);
+    ctx.strokeRect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE);
+    
+    // Grid Lines
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(0, 255, 0, 0.1)";
+    ctx.lineWidth = 1;
+    for(let i=0; i<MINIMAP_SIZE; i+=20) {
+        ctx.moveTo(mapX + i, mapY); ctx.lineTo(mapX + i, mapY + MINIMAP_SIZE);
+        ctx.moveTo(mapX, mapY + i); ctx.lineTo(mapX + MINIMAP_SIZE, mapY + i);
+    }
+    ctx.stroke();
+
+    ctx.beginPath(); ctx.rect(mapX, mapY, MINIMAP_SIZE, MINIMAP_SIZE); ctx.clip();
+    ctx.translate(mapX + MINIMAP_SIZE / 2, mapY + MINIMAP_SIZE / 2);
+    ctx.scale(WORLD_TO_MAP_SCALE, WORLD_TO_MAP_SCALE);
+    ctx.translate(-player.pos.x, -player.pos.y);
+
+    // Draw dungeon rooms on minimap
+    if (currentDungeon && currentDungeon.rooms) {
+        currentDungeon.rooms.forEach((room, idx) => {
+            if (room.explored) {
+                // Room floor (darker if not current)
+                ctx.fillStyle = idx === currentRoomIndex ? 'rgba(0, 80, 0, 0.5)' : 'rgba(0, 40, 0, 0.3)';
+                ctx.fillRect(room.worldX, room.worldY, room.width, room.height);
+
+                // Room walls
+                ctx.fillStyle = '#00aa00';
+                room.walls.forEach(w => {
+                    ctx.fillRect(w.x, w.y, w.w, w.h);
+                });
+
+                // Doors
+                ctx.fillStyle = '#00ffff';
+                room.doors.forEach(d => {
+                    ctx.fillRect(d.x, d.y, d.w, d.h);
+                });
+            } else {
+                // Unexplored room - just outline
+                ctx.strokeStyle = 'rgba(0, 100, 0, 0.3)';
+                ctx.lineWidth = 10;
+                ctx.strokeRect(room.worldX, room.worldY, room.width, room.height);
+            }
+        });
+    }
+
+    // Portals (Cyan Circles/Beacon)
+    portals.forEach(p => {
+        ctx.fillStyle = "#00ffff"; ctx.beginPath(); ctx.arc(p.pos.x, p.pos.y, 80, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "#00ffff"; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(p.pos.x, p.pos.y, 100 + Math.sin(gameTime*10)*20, 0, Math.PI*2); ctx.stroke();
+    });
+
+    // Loot (Gold Squares)
+    loot.forEach(l => { 
+        ctx.fillStyle = "#ffcc00"; 
+        ctx.fillRect(l.pos.x - 25, l.pos.y - 25, 50, 50);
+    });
+
+    // Enemies (Red Xs)
+    ctx.strokeStyle = "#ff0000";
+    ctx.lineWidth = 15; 
+    enemies.forEach(e => { 
+        let s = e.type === 'boss' ? 80 : 40; 
+        ctx.beginPath();
+        ctx.moveTo(e.pos.x - s, e.pos.y - s); ctx.lineTo(e.pos.x + s, e.pos.y + s);
+        ctx.moveTo(e.pos.x + s, e.pos.y - s); ctx.lineTo(e.pos.x - s, e.pos.y + s);
+        ctx.stroke();
+        if(e.type === 'boss') {
+            ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(e.pos.x, e.pos.y, s * 1.5 + Math.sin(gameTime*8)*20, 0, Math.PI*2); ctx.stroke(); ctx.lineWidth = 15; 
+        }
+    });
+
+    // Donut (Pink Dot)
+    ctx.fillStyle = "#ff99cc"; ctx.beginPath(); ctx.arc(donut.pos.x, donut.pos.y, 40, 0, Math.PI*2); ctx.fill();
+
+    // Mongo (Green Dot)
+    if (mongo) {
+        ctx.fillStyle = "#00aa00"; ctx.beginPath(); ctx.arc(mongo.pos.x, mongo.pos.y, 40, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Player Arrow
+    ctx.setTransform(1, 0, 0, 1, mapX + MINIMAP_SIZE / 2, mapY + MINIMAP_SIZE / 2); 
+    let angle = player.facingLeft ? -Math.PI/2 : Math.PI/2; 
+    ctx.rotate(angle);
+    ctx.fillStyle = "#00ff00";
+    ctx.beginPath();
+    ctx.moveTo(0, -10); ctx.lineTo(8, 10); ctx.lineTo(-8, 10);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+/**
+ * Renders the entire game scene including background, entities, and UI.
+ */
+function draw() {
+    // Clear screen with dark background
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, width, height);
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+
+    // Draw current room
+    const room = getCurrentRoom();
+    if (room) {
+        room.draw(ctx);
+
+        // Draw safe room NPCs (barkeep, decorations)
+        if (room.template.isSafeRoom) {
+            // Barkeep behind the counter
+            ctx.save();
+            const barX = room.worldX + 600;
+            const barY = room.worldY + 300;
+            ctx.font = '60px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('🧙', barX, barY); // Barkeep
+            // Bar sign
+            ctx.font = 'bold 16px monospace';
+            ctx.fillStyle = '#ffaa00';
+            ctx.fillText('DRINKS', barX, barY - 50);
+            // Mugs on counter
+            ctx.font = '30px serif';
+            ctx.fillText('🍺🍺🍺', barX, barY + 40);
+            // Cozy ambiance particles
+            if (Math.random() < 0.1) {
+                effects.push(new Particle(barX + Math.random() * 100 - 50, barY - 30, '#ffaa00', 3, 20));
+            }
+            ctx.restore();
+        }
+    }
+
+    // Draw game entities
+    decals.forEach(d => d.draw(ctx));
+    loot.forEach(l => l.draw(ctx));
+    portals.forEach(p => p.draw(ctx));
+    enemies.forEach(e => e.draw(ctx));
+    projectiles.forEach(p => p.draw(ctx));
+    // Draw invulnerability shield during grace period
+    if (playerGraceTimer > 0) {
+        ctx.save();
+        const pulse = Math.sin(gameTime * 8) * 0.3 + 0.5;
+        ctx.globalAlpha = pulse * 0.6;
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(player.pos.x, player.pos.y, 40 + Math.sin(gameTime * 6) * 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = pulse * 0.2;
+        ctx.fillStyle = '#00ffff';
+        ctx.fill();
+        // Draw "PROTECTED" text above player
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = '#00ffff';
+        ctx.font = 'bold 14px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('PROTECTED', player.pos.x, player.pos.y - 55);
+        ctx.restore();
+    }
+    player.draw(ctx);
+    donut.draw(ctx);
+    if(mongo) mongo.draw(ctx);
+    effects.forEach(e => e.draw(ctx));
+    ctx.restore();
+
+    // Light/darkness effect - use room's light radius if set
+    let lightRadius = player.lightRadius;
+    if (room && room.lightRadius) lightRadius = Math.min(lightRadius, room.lightRadius);
+
+    let screenPlayerX = player.pos.x - camera.x;
+    let screenPlayerY = player.pos.y - camera.y;
+    let gradient = ctx.createRadialGradient(screenPlayerX, screenPlayerY, 50, screenPlayerX, screenPlayerY, lightRadius);
+    gradient.addColorStop(0, "rgba(0,0,0,0)");
+    gradient.addColorStop(0.8, "rgba(5,5,5,0.6)");
+    gradient.addColorStop(1, "rgba(0,0,0,0.95)");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    // Projectile glow effects
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(-camera.x, -camera.y);
+    projectiles.forEach(p => {
+        if (p.glow) {
+            let grad = ctx.createRadialGradient(p.pos.x, p.pos.y, 5, p.pos.x, p.pos.y, 60);
+            grad.addColorStop(0, p.glowColor);
+            grad.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(p.pos.x, p.pos.y, 60, 0, Math.PI*2);
+            ctx.fill();
+        }
+    });
+    ctx.restore();
+
+    drawMiniMap(ctx);
+}
+
+function spawnEnemy() {
+    let angle = Math.random() * Math.PI * 2; let dist = Math.max(width, height) / 2 + 100;
+    let x = player.pos.x + Math.cos(angle) * dist, y = player.pos.y + Math.sin(angle) * dist;
+    let type = 'goblin', r = Math.random();
+    if (wave === 2 && r < 0.4) type = 'kobold'; if (wave === 3 && r < 0.3) type = 'bat'; if (wave === 3 && r < 0.1) type = 'kobold';
+    if (wave % 3 === 0 && waveConfig.enemiesSpawned === waveConfig.enemiesToSpawn - 1) { type = 'boss'; speakSystem(SYSTEM_QUOTES.boss); showAnnouncement("BOSS DETECTED", SYSTEM_QUOTES.boss, "#ff0000", "boss"); }
+    enemies.push(new Enemy(x, y, type));
+}
+
+function collectLoot(l) {
+    floorStats.lootCollected++; // Track loot for recap
+
+    if (l.isMimic) {
+        // Trigger Mimic
+        playSound('kick'); // Crunch sound
+        enemies.push(new Enemy(player.pos.x, player.pos.y, 'mimic'));
+        showAnnouncement("IT'S A TRAP!", "MIMIC DETECTED", "#ff0000", "boss");
+        speakSystem("Mimic. Kill it to proceed.");
+        logMessage("System", "Loot box was a Mimic! Kill it to enter the stairwell.", "log-system");
+        return;
+    }
+
+    if (l.isPlat) { 
+        player.useInventory(0); score += 5000; logMessage("System", "PLATINUM BOX ACQUIRED.", "log-achievement"); speakSystem("Platinum Reward."); showAnnouncement("PLATINUM REWARD", "THE AI LOVES YOU", "#ffaa00", "loot"); playSound('portal'); return; 
+    }
+    
+    // Check if it's a loose resource (item) or a Box (safe room)
+    if (l.isResource) {
+        // Use the pre-determined item that matches the displayed icon
+        let newItem = l.resourceItem || ITEMS.POTION;
+
+        if (player.addItem(newItem)) {
+            logMessage("Loot", `Picked up ${newItem.name}`, "log-loot");
+            effects.push(new TextFloater(player.pos.x, player.pos.y - 50, `+${newItem.name}`, "#0f0"));
+        } else {
+            logMessage("Loot", "Inventory full!", "log-system");
+        }
+    } else {
+        // It's a Box for the Safe Room
+        player.lootBoxes++;
+        ui.boxes.innerText = `BOXES: ${player.lootBoxes}`;
+        achievementState.lootCount++;
+        checkAchievements();
+        effects.push(new TextFloater(player.pos.x, player.pos.y - 50, "+LOOT BOX", "#ffaa00"));
+        logMessage("Loot", "Loot Box collected.", "log-loot");
+    }
+    playSound('hit');
+}
+
+function updateHealthUI() { if (!player) return; ui.hp.style.width = Math.max(0, (player.hp/player.maxHp)*100) + "%"; }
+function updateXpUI() { if (!player) return; ui.xp.style.width = Math.max(0, (player.xp/player.xpToLevel)*100) + "%"; ui.lvlSmall.innerText = `(Lvl ${player.lvl})`; }
+function updateInventoryUI() { if (!player) return; player.inventory.forEach((slot, i) => { let el = ui.slots[i]; if (slot.item) { el.querySelector('.inv-icon').innerText = slot.item.icon; el.querySelector('.inv-count').innerText = slot.count; el.style.borderColor = '#ffaa00'; } else { el.querySelector('.inv-icon').innerText = ''; el.querySelector('.inv-count').innerText = ''; el.style.borderColor = '#555'; } }); }
+window.useItem = (idx) => player.useInventory(idx); 
+function triggerLevelUp() { 
+    gameState = 'PAUSE'; ui.upgrade.classList.remove('hidden'); ui.upgradeOpts.innerHTML = ''; 
+    showAnnouncement("LEVEL UP!", "CHOOSE REWARD", "#00ff00");
+    speakSystem("Level Up.");
+    
+    let opts = [...UPGRADES].sort(() => 0.5 - Math.random()).slice(0, 3); 
+    opts.forEach(opt => { 
+        let card = document.createElement('div'); card.className = 'upgrade-card'; 
+        card.innerHTML = `<div class="upgrade-title">${opt.name}</div><div class="upgrade-desc">${opt.desc}</div>`; 
+        card.onclick = () => { 
+            // Apply upgrade logic here (modifying stats directly in object)
+            player.attributes[opt.stat] += opt.val;
+            player.recalcStats();
+            ui.upgrade.classList.add('hidden'); gameState = 'PLAY'; lastTime = performance.now(); 
+        }; 
+        ui.upgradeOpts.appendChild(card); 
+    }); 
+}
+function gameOver(reason) { gameState = 'OVER'; ui.over.classList.remove('hidden'); ui.finalScore.innerText = `Score: ${score} | Viewers: ${viewers}`; ui.deathReason.innerText = reason; speakSystem(SYSTEM_QUOTES.death); }
+function setupTouch() { const joyEl = document.getElementById('joystick'); const joyParams = { maxDist: 50 }; joyEl.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; joystick.ptrId = t.identifier; joystick.active = true; const r = joyEl.getBoundingClientRect(); joystick.originX = r.left+r.width/2; joystick.originY = r.top+r.height/2; updateJoystick(t.clientX, t.clientY); }, {passive: false}); joyEl.addEventListener('touchmove', e => { e.preventDefault(); for (let i=0; i<e.changedTouches.length; i++) { if (e.changedTouches[i].identifier === joystick.ptrId) updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY); } }, {passive: false}); const end = (e) => { e.preventDefault(); joystick.active = false; joystick.dx=0; joystick.dy=0; }; joyEl.addEventListener('touchend', end); joyEl.addEventListener('touchcancel', end); function updateJoystick(x, y) { let dx=x-joystick.originX, dy=y-joystick.originY, d=Math.sqrt(dx*dx+dy*dy); if(d>joyParams.maxDist){dx=(dx/d)*joyParams.maxDist; dy=(dy/d)*joyParams.maxDist;} joystick.dx=dx/joyParams.maxDist; joystick.dy=dy/joyParams.maxDist; } document.getElementById('kick-btn').addEventListener('touchstart', (e) => { e.preventDefault(); if(gameState==='PLAY') player.kick(); }); }
+
+init();
+
+</script>
+</body>
+</html>
