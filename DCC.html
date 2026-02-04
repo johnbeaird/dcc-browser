@@ -1749,6 +1749,25 @@ function checkWallCollision(entity, radius) {
     const room = getCurrentRoom();
     if (!room) return;
 
+    // Check if player is near any active door - if so, allow passing through walls
+    let nearActiveDoor = false;
+    if (entity === player) {
+        for (const door of room.doors) {
+            if (door.active) {
+                const doorCenterX = door.x + door.w / 2;
+                const doorCenterY = door.y + door.h / 2;
+                const distToDoor = Math.sqrt(Math.pow(entity.pos.x - doorCenterX, 2) + Math.pow(entity.pos.y - doorCenterY, 2));
+                if (distToDoor < 150) { // Within door approach zone
+                    nearActiveDoor = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Skip wall collision if near an active door
+    if (nearActiveDoor) return;
+
     room.walls.forEach(wall => {
         if (wall.collidesCircle(entity.pos.x, entity.pos.y, radius)) {
             wall.pushOut(entity, radius);
