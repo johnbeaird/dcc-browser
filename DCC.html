@@ -94,7 +94,7 @@
         .user-name { font-weight: bold; color: #aaa; } .user-mod { color: #d4af37; text-shadow: 0 0 5px #d4af37; } .msg-text { color: #fff; }
 
         /* Inventory */
-        #inventory-bar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
+        #inventory-bar { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
         .inv-slot {
             width: 60px; height: 60px; background: rgba(0,0,0,0.8); border: 2px solid #555;
             display: flex; align-items: center; justify-content: center; font-size: 30px; color: white; position: relative; cursor: pointer;
@@ -106,7 +106,7 @@
 
         /* System Log */
         #system-log {
-            position: absolute; bottom: 120px; left: 20px; width: 450px; height: 250px;
+            position: absolute; bottom: 150px; left: 20px; width: 450px; height: 250px;
             background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0, 0, 0, 0.9) 60%);
             border-left: 0px solid #0f0;
             padding: 15px; overflow-y: hidden; display: flex; flex-direction: column; justify-content: flex-end;
@@ -3002,7 +3002,22 @@ async function openAllLoot() {
 
     isOpeningLoot = true;
     ui.openLootBtn.disabled = true;
-    ui.lootResults.innerHTML = "<div style='color:#fff'>Processing Loot...</div>";
+
+    // Scroll to bottom to show loot results
+    const panel = ui.safeRoom.querySelector('.safe-room-panel');
+
+    // Skip animation flag and spacebar handler
+    let skipAnimation = false;
+    const spaceHandler = (e) => {
+        if (e.code === 'Space') {
+            skipAnimation = true;
+            e.preventDefault();
+        }
+    };
+    document.addEventListener('keydown', spaceHandler);
+
+    ui.lootResults.innerHTML = "<div style='color:#fff'>Processing Loot...<br><span style='font-size:18px; color:#aaa;'>(Press SPACE to skip)</span></div>";
+    if (panel) panel.scrollTop = panel.scrollHeight;
 
     // Capture count and set to 0 immediately to prevent race
     let boxesToOpen = player.lootBoxes;
@@ -3012,6 +3027,7 @@ async function openAllLoot() {
 
     let totalScoreAdded = 0;
     let itemsFoundCount = 0;
+    let lootSummary = []; // Track all loot for summary
 
     // Check bulk achievement
     if (boxesToOpen >= 5) {
@@ -3021,10 +3037,11 @@ async function openAllLoot() {
 
     try {
         for (let i = 1; i <= boxesToOpen; i++) {
-            // Show "Opening..." state
-            ui.lootResults.innerHTML = `<div style="font-size:30px; color:#aaa;">OPENING BOX ${i}/${boxesToOpen}...</div>`;
-
-            await new Promise(r => setTimeout(r, 1000)); // Suspense
+            // Show "Opening..." state (unless skipping)
+            if (!skipAnimation) {
+                ui.lootResults.innerHTML = `<div style="font-size:30px; color:#aaa;">OPENING BOX ${i}/${boxesToOpen}...<br><span style='font-size:18px;'>(Press SPACE to skip)</span></div>`;
+                await new Promise(r => setTimeout(r, 1000)); // Suspense
+            }
 
             let roll = Math.random();
             let loot;
@@ -3057,17 +3074,26 @@ async function openAllLoot() {
                 else color = "#fff";
             }
 
-            // Display Result - CINEMATIC
-            let displayHtml = `
-                <div class="loot-reveal-item" style="color:${color}">
-                    <div class="loot-icon">${icon}</div>
-                    <div class="loot-name">${loot.name}</div>
-                    <div class="loot-type">${loot.type === 'item' ? 'Added to Inventory' : '+' + loot.score + ' Score'}</div>
-                </div>
-            `;
-            ui.lootResults.innerHTML = displayHtml;
+            // Add to summary
+            lootSummary.push({ icon, name: loot.name, color, type: loot.type, score: loot.score || 0 });
 
-            playSound('achievement'); // Better sound for loot
+            // Display Result - CINEMATIC (unless skipping)
+            if (!skipAnimation) {
+                let displayHtml = `
+                    <div class="loot-reveal-item" style="color:${color}">
+                        <div class="loot-icon">${icon}</div>
+                        <div class="loot-name">${loot.name}</div>
+                        <div class="loot-type">${loot.type === 'item' ? 'Added to Inventory' : '+' + loot.score + ' Score'}</div>
+                    </div>
+                `;
+                ui.lootResults.innerHTML = displayHtml;
+
+                // Keep scrolled to bottom to show latest loot
+                if (panel) panel.scrollTop = panel.scrollHeight;
+
+                playSound('achievement'); // Better sound for loot
+            }
+
             ui.score.innerText = `SCORE: ${score}`;
 
             // Check Achievement
@@ -3076,15 +3102,40 @@ async function openAllLoot() {
                  triggerAchievement(ACHIEVEMENTS.lucky.title, ACHIEVEMENTS.lucky.desc);
             }
 
-            await new Promise(r => setTimeout(r, 1500)); // Read time
+            if (!skipAnimation) {
+                await new Promise(r => setTimeout(r, 1500)); // Read time
+            }
         }
     } finally {
+        // Remove spacebar listener
+        document.removeEventListener('keydown', spaceHandler);
+
         // Always cleanup, even if error occurs
         isOpeningLoot = false;
-        ui.lootResults.innerHTML = `
-            <div style="color:#00ccff; font-size:30px;">ALL BOXES OPENED</div>
-            <div style="font-family:'VT323'; font-size:24px; color:#aaa;">Score: +${totalScoreAdded} | Items: +${itemsFoundCount}</div>
-        `;
+
+        // Show summary if skipped, otherwise show simple completion
+        if (skipAnimation) {
+            let summaryHtml = `
+                <div style="color:#00ccff; font-size:30px; margin-bottom:20px;">ALL BOXES OPENED</div>
+                <div style="font-family:'VT323'; font-size:24px; color:#aaa; margin-bottom:20px;">Score: +${totalScoreAdded} | Items: +${itemsFoundCount}</div>
+                <div style="max-height: 300px; overflow-y: auto; border-top: 2px solid #333; padding-top: 10px;">
+            `;
+            lootSummary.forEach(item => {
+                summaryHtml += `<div style="color:${item.color}; font-size:20px; margin: 5px 0;">${item.icon} ${item.name}</div>`;
+            });
+            summaryHtml += `</div>`;
+            ui.lootResults.innerHTML = summaryHtml;
+            playSound('achievement');
+        } else {
+            ui.lootResults.innerHTML = `
+                <div style="color:#00ccff; font-size:30px;">ALL BOXES OPENED</div>
+                <div style="font-family:'VT323'; font-size:24px; color:#aaa;">Score: +${totalScoreAdded} | Items: +${itemsFoundCount}</div>
+            `;
+        }
+
+        // Final scroll to show completion message
+        if (panel) panel.scrollTop = panel.scrollHeight;
+
         speakSystem("Loot Processed.");
         // Re-enable button if player has collected more boxes
         if (player && player.lootBoxes > 0) {
