@@ -1126,6 +1126,13 @@ class Door {
         const centerX = this.x + this.w / 2;
         const centerY = this.y + this.h / 2;
 
+        // DEBUG: Draw trigger radius circle
+        ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 100, 0, Math.PI * 2);
+        ctx.stroke();
+
         if (this.active) {
             // Pulsing glow effect
             const pulse = 0.5 + Math.sin(gameTime * 4) * 0.5;
@@ -1150,8 +1157,8 @@ class Door {
             ctx.textBaseline = 'middle';
             ctx.fillText('→', centerX, centerY);
         } else {
-            // Inactive door - faint outline
-            ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+            // Inactive door - faint outline (enemies still alive)
+            ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)';
             ctx.lineWidth = 2;
             ctx.strokeRect(this.x, this.y, this.w, this.h);
         }
@@ -2499,6 +2506,17 @@ function draw() {
             ctx.fill();
         }
     });
+    ctx.restore();
+
+    // DEBUG: Show player position and enemy count
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(10, height - 80, 300, 70);
+    ctx.fillStyle = '#0f0';
+    ctx.font = '14px monospace';
+    ctx.fillText(`Player: (${player.pos.x.toFixed(0)}, ${player.pos.y.toFixed(0)})`, 15, height - 60);
+    ctx.fillText(`Room: ${currentRoomIndex} | Enemies: ${enemies.length}`, 15, height - 40);
+    ctx.fillText(`Cooldown: ${roomTransitionCooldown.toFixed(2)}s`, 15, height - 20);
     ctx.restore();
 
     drawMiniMap(ctx);
