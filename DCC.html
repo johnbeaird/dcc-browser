@@ -918,11 +918,15 @@ const ROOM_TEMPLATES = {
         walls: [
             { x: 0, y: 0, w: 1000, h: 20 },
             { x: 0, y: 580, w: 1000, h: 20 },
-            { x: 0, y: 0, w: 20, h: 600 },
-            { x: 980, y: 0, w: 20, h: 600 },
-            // Chasm edges - narrow bridge in center
-            { x: 20, y: 200, w: 250, h: 200 },   // left platform
-            { x: 730, y: 200, w: 250, h: 200 },  // right platform
+            { x: 0, y: 0, w: 20, h: 220 },      // left wall top (gap for door at y:220-380)
+            { x: 0, y: 380, w: 20, h: 220 },    // left wall bottom
+            { x: 980, y: 0, w: 20, h: 220 },    // right wall top (gap for door)
+            { x: 980, y: 380, w: 20, h: 220 },  // right wall bottom
+            // Chasm edges - narrow bridge in center (with gaps for doors)
+            { x: 20, y: 20, w: 200, h: 180 },   // left platform top
+            { x: 20, y: 400, w: 200, h: 160 },  // left platform bottom
+            { x: 780, y: 20, w: 200, h: 180 },  // right platform top
+            { x: 780, y: 400, w: 200, h: 160 }, // right platform bottom
             // Bridge supports
             { x: 270, y: 280, w: 30, h: 40 },
             { x: 700, y: 280, w: 30, h: 40 }
