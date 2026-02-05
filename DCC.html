@@ -1313,7 +1313,7 @@ function checkAchievements() {
 function triggerAchievement(title, desc) {
     showAnnouncement("NEW ACHIEVEMENT!", title, "#FFD700"); // Gold color
     logMessage("System", `ACHIEVEMENT UNLOCKED: ${title} - ${desc}`, "log-achievement");
-    speakSystem("Neeeeew Achievement!", 1.3, 0.6); // High pitch, slow rate
+    speakSystem("Neeeeew Achievement!", 1.8, 0.5); // Very high pitch, slower rate
     playSound('achievement');
 }
 
@@ -1548,9 +1548,26 @@ class Room {
 
         // Create walls from template
         const offset = { x: worldX, y: worldY };
-        template.walls.forEach(w => {
-            this.walls.push(new Wall(w.x, w.y, w.w, w.h, offset));
-        });
+        if (!template.walls || template.walls.length === 0) {
+            console.error('[BUG] Room template has no walls!', {
+                templateName: template.name,
+                template: template
+            });
+        } else {
+            template.walls.forEach(w => {
+                this.walls.push(new Wall(w.x, w.y, w.w, w.h, offset));
+            });
+        }
+
+        // SAFETY CHECK: Verify walls were created
+        if (this.walls.length === 0) {
+            console.error('[BUG] Room created with no walls!', {
+                templateName: template.name,
+                index: index,
+                worldX: worldX,
+                worldY: worldY
+            });
+        }
     }
 
     addDoor(side, offset, targetIndex) {
@@ -1636,7 +1653,20 @@ class Room {
         }
 
         // Draw walls
-        this.walls.forEach(w => w.draw(ctx));
+        // SAFETY CHECK: Restore walls if missing
+        if (!this.walls || this.walls.length === 0) {
+            if (this.template && this.template.walls) {
+                console.error('[BUG] Walls missing during render, restoring...', this.template.name);
+                this.walls = [];
+                const offset = { x: this.worldX, y: this.worldY };
+                this.template.walls.forEach(w => {
+                    this.walls.push(new Wall(w.x, w.y, w.w, w.h, offset));
+                });
+            }
+        }
+        if (this.walls) {
+            this.walls.forEach(w => w.draw(ctx));
+        }
 
         // Draw doors
         this.doors.forEach(d => d.draw(ctx));
@@ -1749,6 +1779,29 @@ function checkWallCollision(entity, radius) {
     const room = getCurrentRoom();
     if (!room) return;
 
+    // SAFETY CHECK: Verify room has walls - if not, restore them from template
+    if (!room.walls || room.walls.length === 0) {
+        console.error('[BUG DETECTED] Room has no walls! Attempting to restore...', {
+            roomIndex: currentRoomIndex,
+            roomName: room.template?.name,
+            roomCleared: room.cleared
+        });
+
+        // Attempt to restore walls from template
+        if (room.template && room.template.walls) {
+            room.walls = [];
+            const offset = { x: room.worldX, y: room.worldY };
+            room.template.walls.forEach(w => {
+                room.walls.push(new Wall(w.x, w.y, w.w, w.h, offset));
+            });
+            console.log(`[BUG FIX] Restored ${room.walls.length} walls for room ${room.template.name}`);
+            showAnnouncement("SYSTEM", "WALLS RESTORED", "#ffaa00");
+        } else {
+            console.error('[BUG FIX FAILED] Cannot restore walls - template missing');
+            return;
+        }
+    }
+
     room.walls.forEach(wall => {
         if (wall.collidesCircle(entity.pos.x, entity.pos.y, radius)) {
             // Check if this wall has a door nearby (only skip collision for walls with doors)
@@ -1774,8 +1827,11 @@ function checkWallCollision(entity, radius) {
                             Math.pow(entity.pos.y - doorCenterY, 2)
                         );
 
-                        // Only allow passthrough if wall has door AND player is near that door
-                        if (distWallToDoor < 100 && distPlayerToDoor < 120) {
+                        // Only allow passthrough if:
+                        // 1. Wall is VERY close to door (within 30px - basically overlapping)
+                        // 2. Player is VERY close to door (within 60px - inside door opening)
+                        // 3. Room must be cleared (enemies defeated)
+                        if (distWallToDoor < 30 && distPlayerToDoor < 60 && enemies.length === 0) {
                             wallHasDoor = true;
                             break;
                         }
@@ -1968,11 +2024,37 @@ function transitionToRoom(roomIndex) {
         }
     }
 
-    // Spawn Katia randomly in combat rooms on floor 3+ (30% chance)
-    if (floor >= 3 && !room.template.isSafeRoom && !room.template.hasExit && Math.random() < 0.3) {
+    // Spawn Katia randomly in combat rooms on floor 4+ (30% chance)
+    if (floor >= 4 && !room.template.isSafeRoom && !room.template.hasExit && Math.random() < 0.3) {
         const katiaPos = room.getSpawnPoint();
         katia = new Katia(katiaPos.x, katiaPos.y);
-        logMessage("System", "Katia has appeared!", "log-achievement");
+
+        // Show visual announcement
+        showAnnouncement("CRAWLER DETECTED", "KATIA HAS APPEARED", "#ff00ff");
+        playSound('portal');
+
+        // First encounter intro sequence
+        if (!introState.katiaShown) {
+            introState.katiaShown = true;
+            logMessage("System", "Another crawler detected in this room!", "log-achievement");
+
+            setTimeout(() => {
+                showPartyMessage("CARL", "Katia? What are YOU doing here?", "#00ccff");
+                setTimeout(() => {
+                    logMessage("Katia", "Carl. Still kicking, I see. This floor's mine, but I'll share the kills.", "log-chat");
+                    speakSystem("Katia. Fellow crawler.", 0.7, 0.85);
+                    setTimeout(() => {
+                        showPartyMessage("PRINCESS DONUT", "She smells like DANGER and CHEAP PERFUME!", "#ff99cc");
+                        setTimeout(() => {
+                            logMessage("Mordecai", "Crawlers encounter each other. Rare. Katia's a solo operator. Watch your back, Carl.", "log-mordecai");
+                        }, 3500);
+                    }, 3500);
+                }, 3500);
+            }, 2500);
+        } else {
+            // Subsequent encounters - just log message
+            logMessage("System", "Katia has appeared!", "log-achievement");
+        }
     } else {
         // Clear katia if room doesn't have her
         katia = null;
@@ -2179,6 +2261,220 @@ class Katia extends Entity {
 
         playSound('powerup');
         this.canInteract = false;
+    }
+}
+
+class PlayManager {
+    constructor() {
+        this.activePlay = null;
+        this.playTimer = 0;
+        this.playQueue = [];
+        this.companionActions = [];
+        this.cooldownTimer = 0;
+        this.minCooldown = 45; // Minimum seconds between plays
+        this.enabled = false;
+    }
+
+    update(dt) {
+        if (!this.enabled || floor < 5) return;
+
+        // Cooldown management
+        if (this.cooldownTimer > 0) {
+            this.cooldownTimer -= dt;
+            return;
+        }
+
+        // Check if we should trigger a play
+        if (!this.activePlay && this.shouldTriggerPlay()) {
+            this.startRandomPlay();
+        }
+
+        // Execute active play
+        if (this.activePlay) {
+            this.executePlay(dt);
+        }
+    }
+
+    shouldTriggerPlay() {
+        // Conditions: combat active, minimum enemies present, companions alive
+        if (enemies.length < 3) return false;
+        if (gameState !== 'PLAY') return false;
+        if (!donut || !mongo) return false;
+
+        // Check for elite enemies (triggers more plays)
+        const hasElite = enemies.some(e =>
+            ['shaman', 'necromancer', 'golem', 'drake', 'wraith', 'banshee'].includes(e.type)
+        );
+
+        // 15% chance per update cycle when conditions met, higher with elites
+        return Math.random() < (hasElite ? 0.20 : 0.15);
+    }
+
+    startRandomPlay() {
+        const availablePlays = this.getAvailablePlays();
+        if (availablePlays.length === 0) return;
+
+        this.activePlay = availablePlays[Math.floor(Math.random() * availablePlays.length)];
+        this.playTimer = 0;
+        this.companionActions = [];
+
+        logMessage("System", "BATTLE PLAY TRIGGERED!", "log-achievement");
+        playSound('achievement');
+    }
+
+    getAvailablePlays() {
+        const plays = [];
+
+        // Basic plays (require Donut + Mongo)
+        if (donut && mongo) {
+            plays.push(
+                { name: 'PINCER_ATTACK', duration: 5, companions: ['donut', 'mongo'] },
+                { name: 'COVERING_FIRE', duration: 6, companions: ['donut', 'mongo'] },
+                { name: 'SYNCHRONIZED_STRIKE', duration: 4, companions: ['donut', 'mongo'] }
+            );
+        }
+
+        // Enhanced plays (require all three companions)
+        if (donut && mongo && katia) {
+            plays.push(
+                { name: 'TRIPLE_THREAT', duration: 7, companions: ['donut', 'mongo', 'katia'] },
+                { name: 'CHAOS_FORMATION', duration: 6, companions: ['donut', 'mongo', 'katia'] }
+            );
+        }
+
+        return plays;
+    }
+
+    executePlay(dt) {
+        if (!this.activePlay) return;
+
+        this.playTimer += dt;
+        const play = this.activePlay;
+
+        // Execute play-specific logic based on timer checkpoints
+        if (play.name === 'PINCER_ATTACK') {
+            this.executePincerAttack(this.playTimer);
+        } else if (play.name === 'COVERING_FIRE') {
+            this.executeCoveringFire(this.playTimer);
+        } else if (play.name === 'SYNCHRONIZED_STRIKE') {
+            this.executeSynchronizedStrike(this.playTimer);
+        } else if (play.name === 'TRIPLE_THREAT') {
+            this.executeTripleThreat(this.playTimer);
+        } else if (play.name === 'CHAOS_FORMATION') {
+            this.executeChaosFormation(this.playTimer);
+        }
+
+        // End play when duration expires
+        if (this.playTimer >= play.duration) {
+            this.endPlay();
+        }
+    }
+
+    executePincerAttack(timer) {
+        // Mongo and Donut coordinate to attack from opposite sides
+        if (timer < 0.1) {
+            showPartyMessage("CARL", "Donut, Mongo - pincer formation!", "#00ccff");
+        }
+        if (timer >= 1.0 && timer < 1.1) {
+            showPartyMessage("PRINCESS DONUT", "ON IT! Flanking maneuver!", "#ff99cc");
+        }
+
+        // Boost companion damage during play
+        if (mongo) mongo.attackCooldown = Math.max(0, mongo.attackCooldown - 0.3);
+        if (donut) donut.cooldown = Math.max(0, donut.cooldown - 0.2);
+    }
+
+    executeCoveringFire(timer) {
+        // Donut provides magical suppression while Mongo charges
+        if (timer < 0.1) {
+            showPartyMessage("PRINCESS DONUT", "I'll keep them busy! MONGO - ATTACK!", "#ff99cc");
+        }
+
+        // Boost Donut's fire rate, increase Mongo's speed
+        if (donut) {
+            donut.fireRate = 0.8; // Faster shots
+        }
+        if (mongo && timer > 2.0) {
+            mongo.speed = 220; // Speed boost
+        }
+    }
+
+    executeSynchronizedStrike(timer) {
+        // Coordinated burst damage
+        if (timer < 0.1) {
+            showAnnouncement("SYNCHRONIZED STRIKE", "COMPANIONS ATTACK!", "#ffaa00");
+            speakSystem("Synchronized Strike.");
+        }
+
+        if (timer >= 2.0 && timer < 2.5) {
+            // Massive damage burst
+            const nearestEnemy = enemies.reduce((prev, curr) => {
+                if (!player) return prev;
+                return (prev ? prev.pos.dist(player.pos) : 999) < curr.pos.dist(player.pos) ? prev : curr;
+            }, null);
+
+            if (nearestEnemy) {
+                nearestEnemy.takeDamage(60, false);
+                effects.push(new Effect(nearestEnemy.pos.x, nearestEnemy.pos.y, '💥', 100, 1.0));
+                playSound('explode');
+            }
+        }
+    }
+
+    executeTripleThreat(timer) {
+        // All three companions coordinate
+        if (timer < 0.1) {
+            showAnnouncement("TRIPLE THREAT", "ALL COMPANIONS ATTACKING!", "#ff00ff");
+        }
+        if (timer >= 1.5 && timer < 1.6) {
+            showPartyMessage("CARL", "Everyone together - NOW!", "#00ccff");
+        }
+        if (timer >= 3.0 && timer < 3.1) {
+            logMessage("Katia", "Not bad, Carl. Not bad at all.", "log-chat");
+        }
+
+        // Boost all companions
+        if (donut) donut.cooldown = Math.max(0, donut.cooldown - 0.3);
+        if (mongo) mongo.attackCooldown = Math.max(0, mongo.attackCooldown - 0.4);
+        if (katia) katia.attackCooldown = Math.max(0, katia.attackCooldown - 0.3);
+    }
+
+    executeChaosFormation(timer) {
+        // Random aggressive tactics
+        if (timer < 0.1) {
+            showPartyMessage("PRINCESS DONUT", "CHAOS TIME! Everyone attack EVERYTHING!", "#ff99cc");
+        }
+        if (timer >= 2.5 && timer < 2.6) {
+            logMessage("Katia", "You're all insane. I love it.", "log-chat");
+        }
+
+        // Random speed boosts and effects
+        if (Math.random() < 0.1) {
+            const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
+            if (randomEnemy) {
+                effects.push(new Effect(randomEnemy.pos.x, randomEnemy.pos.y, '💫', 50, 0.5));
+            }
+        }
+    }
+
+    endPlay() {
+        if (!this.activePlay) return;
+
+        logMessage("System", `${this.activePlay.name} complete!`, "log-system");
+
+        // Reset companion stats to normal
+        if (donut) donut.fireRate = 1.5;
+        if (mongo) mongo.speed = 180;
+
+        this.activePlay = null;
+        this.playTimer = 0;
+        this.cooldownTimer = this.minCooldown + Math.random() * 15; // 45-60s cooldown
+    }
+
+    enable() {
+        this.enabled = true;
+        logMessage("System", "BATTLE PLAYS ENABLED - Floor 5+", "log-achievement");
+        showAnnouncement("BATTLE PLAYS", "ACTIVATED", "#ffaa00");
     }
 }
 
@@ -3023,6 +3319,11 @@ class LootBox extends Entity {
 let portals = [];
 let mongo = null;
 let katia = null;
+let introState = {
+    mongoShown: false,
+    katiaShown: false
+};
+let playManager = null;
 
 /**
  * Initializes the game by setting up event listeners and starting the game loop.
@@ -3055,6 +3356,8 @@ function startGame() {
     floorStats = { kills: 0, damageDealt: 0, damageTaken: 0, lootCollected: 0, timeSpent: 0 }; // Reset floor stats
     ui.start.classList.add('hidden'); ui.over.classList.add('hidden'); ui.upgrade.classList.add('hidden');
     player = new Player(); donut = new Donut(); mongo = null;
+    playManager = new PlayManager();
+    introState = { mongoShown: false, katiaShown: false };
     enemies = []; projectiles = []; effects = []; loot = []; portals = []; decals = [];
 
     // Generate dungeon for floor 1
@@ -3453,8 +3756,30 @@ window.descendToNextFloor = function() {
     // Check for Mongo unlock
     if (floor === 3 && !mongo) {
         mongo = new Mongo(player.pos.x, player.pos.y);
-        showAnnouncement("NEW COMPANION", "MONGO IS HERE", "#00ff00");
-        speakSystem("New Companion.");
+
+        // Show announcement first
+        showAnnouncement("NEW COMPANION", "MONGO HAS JOINED", "#ffaa00");
+        speakSystem("New Companion Unlocked.");
+
+        // Trigger intro dialogue sequence after short delay
+        if (!introState.mongoShown) {
+            introState.mongoShown = true;
+            setTimeout(() => {
+                showPartyMessage("PRINCESS DONUT", "CARL! Is that... Mongo? He looks FERAL!", "#ff99cc");
+                setTimeout(() => {
+                    showPartyMessage("CARL", "Easy, Mongo. You're with us now. Good to have you, buddy.", "#00ccff");
+                    setTimeout(() => {
+                        logMessage("Mordecai", "Handbook Update: Mongo - Combat companion. Bites hard. Don't pet him.", "log-mordecai");
+                        speakSystem("Mongo is ready for combat.", 0.6, 0.9);
+                    }, 3500);
+                }, 3500);
+            }, 2500);
+        }
+    }
+
+    // Enable PlayManager on floor 5
+    if (floor === 5 && playManager && !playManager.enabled) {
+        playManager.enable();
     }
 
     enemies = []; projectiles = []; portals = []; decals = []; loot = [];
@@ -3507,12 +3832,33 @@ function loop(time) {
  */
 function update(dt) {
     gameTime += dt; floorStats.timeSpent += dt; // Track time for recap
+
+    // VALIDATION CHECK: Ensure current room has walls
+    const currentRoom = getCurrentRoom();
+    if (currentRoom && (!currentRoom.walls || currentRoom.walls.length === 0)) {
+        console.error('[BUG WARNING] Current room has no walls at frame start!', {
+            roomIndex: currentRoomIndex,
+            roomName: currentRoom.template?.name,
+            roomCleared: currentRoom.cleared
+        });
+        // Attempt to restore walls from template
+        if (currentRoom.template && currentRoom.template.walls) {
+            currentRoom.walls = [];
+            const offset = { x: currentRoom.worldX, y: currentRoom.worldY };
+            currentRoom.template.walls.forEach(w => {
+                currentRoom.walls.push(new Wall(w.x, w.y, w.w, w.h, offset));
+            });
+            console.log('[BUG FIX] Walls restored at frame start');
+        }
+    }
+
     if (Math.random() < 0.05 && viewers > 12) viewers--; ui.viewers.innerText = `${viewers} Viewers`;
     if (roomTransitionCooldown > 0) roomTransitionCooldown -= dt; // Decrement door transition cooldown
     if (playerGraceTimer > 0) playerGraceTimer -= dt; // Decrement invulnerability timer
     player.update(dt); donut.update(dt, player);
     if(mongo) mongo.update(dt);
     if(katia) katia.update(dt);
+    if(playManager) playManager.update(dt);
 
     enemies.forEach(e => e.update(dt, player)); projectiles.forEach(p => p.update(dt)); effects.forEach(e => e.update(dt)); decals.forEach(e => e.update(dt)); portals.forEach(p => p.update(dt));
     loot.forEach(l => { if (player.pos.dist(l.pos) < 50) { l.dead = true; collectLoot(l); } });
@@ -3528,7 +3874,9 @@ function update(dt) {
 
         // Only show cleared message and loot for combat rooms (spawns > 0)
         if (room.template.spawns > 0) {
+            showAnnouncement("ROOM CLEARED", `${room.template.name.toUpperCase()}`, "#00ff00");
             logMessage("System", `${room.template.name} cleared!`, "log-achievement");
+            speakSystem("Room Cleared.", 1.0, 1.1);
             playSound('portal');
 
             // Spawn loot
