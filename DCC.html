@@ -1375,11 +1375,49 @@ let isOpeningLoot = false;
 const MAX_EFFECTS = 200;
 const MAX_DECALS = 50;
 
+// OPTIMIZATION: UI throttling to reduce DOM updates (Tier 1 #3)
+const UI_UPDATE_RATE = 0.1; // Update UI every 100ms (10 Hz)
+let uiUpdateTimer = 0;
+let lastViewersValue = '';
+let lastTimerValue = '';
+let lastInventoryHash = '';
+
+// OPTIMIZATION: Gradient caching (Tier 2 #2)
+let cachedLightGradient = null;
+let cachedLightRadius = 0;
+let cachedLightPos = { x: 0, y: 0 };
+const projectileGlowCache = new Map(); // color -> gradient
+
+// OPTIMIZATION: Time-based particle spawning (Tier 3 #2)
+const PARTICLE_SPAWN_INTERVAL = 0.05; // Spawn at most every 50ms (20 Hz)
+let lastSafeRoomParticleTime = 0;
+let lastPlayerParticleTime = 0;
+let lastStairwayParticleTime = 0;
+
 // --- Classes ---
 /**
  * 2D Vector class for positions, velocities, and calculations.
  */
 class Vector2 { constructor(x, y) { this.x = x; this.y = y; } add(v) { return new Vector2(this.x + v.x, this.y + v.y); } sub(v) { return new Vector2(this.x - v.x, this.y - v.y); } mag() { return Math.sqrt(this.x * this.x + this.y * this.y); } normalize() { let m = this.mag(); return m === 0 ? new Vector2(0, 0) : new Vector2(this.x / m, this.y / m); } scale(s) { return new Vector2(this.x * s, this.y * s); } dist(v) { return Math.sqrt(Math.pow(this.x - v.x, 2) + Math.pow(this.y - v.y, 2)); } }
+
+/**
+ * OPTIMIZATION: In-place array compaction (Tier 2 #1)
+ * Removes dead entities without allocating a new array
+ */
+function compactArray(arr) {
+    let writeIndex = 0;
+    for (let readIndex = 0; readIndex < arr.length; readIndex++) {
+        if (!arr[readIndex].dead) {
+            if (writeIndex !== readIndex) {
+                arr[writeIndex] = arr[readIndex];
+            }
+            writeIndex++;
+        }
+    }
+    arr.length = writeIndex;
+    return arr;
+}
+
 /**
  * Base class for all game entities (players, enemies, items, etc.).
  */
@@ -1390,7 +1428,11 @@ class Stairway extends Entity {
     update(dt) {
         this.blocked = enemies.length > 0;
         this.glowColor = this.blocked ? '#ff4444' : '#00ccff';
-        if (Math.random() < 0.2) effects.push(new Particle(this.pos.x, this.pos.y, this.blocked ? '#ff4444' : '#00ccff', 5, 50));
+        // OPTIMIZATION: Time-based particle spawning (Tier 3 #2)
+        if (gameTime - lastStairwayParticleTime > PARTICLE_SPAWN_INTERVAL) {
+            effects.push(new Particle(this.pos.x, this.pos.y, this.blocked ? '#ff4444' : '#00ccff', 5, 50));
+            lastStairwayParticleTime = gameTime;
+        }
     }
     draw(ctx) {
         super.draw(ctx);
@@ -1588,26 +1630,37 @@ class Room {
         this.doors.push(new Door(x, y, targetIndex, side));
     }
 
-    getSpawnPoint() {
+    getSpawnPoint(avoidDoorZones = false) {
         const area = this.template.spawnArea;
         const center = this.getCenter();
         const minDistFromCenter = 150; // Keep enemies away from where player spawns
+        const doorZoneMargin = 250; // Keep loot away from door entry zones (200px teleport + 50px buffer)
 
         // Try up to 10 times to find a spawn point away from center
         for (let i = 0; i < 10; i++) {
             const x = this.worldX + area.x + Math.random() * area.w;
             const y = this.worldY + area.y + Math.random() * area.h;
             const dist = Math.sqrt(Math.pow(x - center.x, 2) + Math.pow(y - center.y, 2));
-            if (dist >= minDistFromCenter) {
-                return new Vector2(x, y);
+
+            // Check distance from center
+            if (dist < minDistFromCenter) continue;
+
+            // If avoiding door zones, check distance from all four edges
+            if (avoidDoorZones) {
+                const distFromLeftEdge = x - this.worldX;
+                const distFromRightEdge = (this.worldX + this.width) - x;
+                const distFromTopEdge = y - this.worldY;
+                const distFromBottomEdge = (this.worldY + this.height) - y;
+                if (distFromLeftEdge < doorZoneMargin || distFromRightEdge < doorZoneMargin ||
+                    distFromTopEdge < doorZoneMargin || distFromBottomEdge < doorZoneMargin) {
+                    continue; // Too close to a wall
+                }
             }
+
+            return new Vector2(x, y);
         }
-        // Fallback: spawn at edge of spawn area
-        const edge = Math.random() < 0.5 ? 0 : 1;
-        return new Vector2(
-            this.worldX + area.x + (edge ? area.w : 0),
-            this.worldY + area.y + Math.random() * area.h
-        );
+        // Fallback: spawn at center (safe from all doors)
+        return new Vector2(center.x, center.y);
     }
 
     getCenter() {
@@ -1922,6 +1975,16 @@ function transitionToRoom(roomIndex) {
     player.pos = new Vector2(spawnX, spawnY);
     donut.pos = new Vector2(spawnX - 30, spawnY);
     if (mongo) mongo.pos = new Vector2(spawnX + 30, spawnY);
+
+    // FIX: Ensure entities are properly contained after spawning
+    room.containEntity(player, player.size / 2, false);
+    checkWallCollision(player, player.size / 2);
+    room.containEntity(donut, donut.size / 2, false);
+    checkWallCollision(donut, donut.size / 2);
+    if (mongo) {
+        room.containEntity(mongo, mongo.size / 2, false);
+        checkWallCollision(mongo, mongo.size / 2);
+    }
 
     // Clear projectiles and effects when changing rooms
     projectiles = [];
@@ -2529,7 +2592,11 @@ class Player extends Entity {
 
             this.pos = this.pos.add(input.scale(currentSpeed * dt));
             this.facingLeft = input.x < 0;
-            if (Math.random() < 0.1) effects.push(new Particle(this.pos.x, this.pos.y + 20, '#555', 4, 20));
+            // OPTIMIZATION: Time-based particle spawning (Tier 3 #2)
+            if (gameTime - lastPlayerParticleTime > PARTICLE_SPAWN_INTERVAL) {
+                effects.push(new Particle(this.pos.x, this.pos.y + 20, '#555', 4, 20));
+                lastPlayerParticleTime = gameTime;
+            }
             // Wall collision - RE-ENABLED after fixing Vector2 mutation bug
             checkWallCollision(this, this.size / 2);
             // Keep player inside room bounds
@@ -3813,10 +3880,29 @@ window.descendToNextFloor = function() {
  */
 function loop(time) {
     let dt = (time - lastTime) / 1000; lastTime = time; if (dt > 0.1) dt = 0.1;
+
+    // OPTIMIZATION: Short-circuit for game over and recap states (skip expensive logic)
+    if (gameState === 'OVER' || gameState === 'RECAP') {
+        draw(); // Only redraw UI
+        requestAnimationFrame(loop);
+        return;
+    }
+
     if (screenshake > 0) { screenshake -= dt * 30; if (screenshake < 0) screenshake = 0; }
     if (gameState === 'PLAY') { updateWaveLogic(dt); update(dt); draw(); }
     else if (gameState === 'EXPLORE') {
-        floorTimeLeft -= dt; let mins = Math.floor(floorTimeLeft / 60); let secs = Math.floor(floorTimeLeft % 60); ui.timer.innerText = `${mins < 10 ? '0'+mins : mins}:${secs < 10 ? '0'+secs : secs}`; if (floorTimeLeft <= 0) { gameOver("THE FLOOR COLLAPSED."); return; }
+        floorTimeLeft -= dt;
+        if (floorTimeLeft <= 0) { gameOver("THE FLOOR COLLAPSED."); return; }
+
+        // OPTIMIZATION: Only update timer DOM if text changed
+        let mins = Math.floor(floorTimeLeft / 60);
+        let secs = Math.floor(floorTimeLeft % 60);
+        const timerText = `${mins < 10 ? '0'+mins : mins}:${secs < 10 ? '0'+secs : secs}`;
+        if (timerText !== lastTimerValue) {
+            ui.timer.innerText = timerText;
+            lastTimerValue = timerText;
+        }
+
         update(dt); draw();
         // Portal interaction - increased distance to 150, and only allow entry if no enemies
         if (enemies.length === 0) {
@@ -3852,7 +3938,29 @@ function update(dt) {
         }
     }
 
-    if (Math.random() < 0.05 && viewers > 12) viewers--; ui.viewers.innerText = `${viewers} Viewers`;
+    // OPTIMIZATION: Throttle UI updates to 10 Hz (Tier 1 #3)
+    uiUpdateTimer += dt;
+    if (uiUpdateTimer >= UI_UPDATE_RATE) {
+        uiUpdateTimer = 0;
+
+        // Update viewers only if changed
+        if (Math.random() < 0.05 && viewers > 12) viewers--;
+        const viewersText = `${viewers} Viewers`;
+        if (viewersText !== lastViewersValue) {
+            ui.viewers.innerText = viewersText;
+            lastViewersValue = viewersText;
+        }
+
+        // Update inventory only if changed AND player exists
+        if (player && player.inventory) {
+            const inventoryHash = JSON.stringify(player.inventory.map(s => [s.item?.name, s.count]));
+            if (inventoryHash !== lastInventoryHash) {
+                updateInventoryUI();
+                lastInventoryHash = inventoryHash;
+            }
+        }
+    }
+
     if (roomTransitionCooldown > 0) roomTransitionCooldown -= dt; // Decrement door transition cooldown
     if (playerGraceTimer > 0) playerGraceTimer -= dt; // Decrement invulnerability timer
     player.update(dt); donut.update(dt, player);
@@ -3860,36 +3968,50 @@ function update(dt) {
     if(katia) katia.update(dt);
     if(playManager) playManager.update(dt);
 
-    enemies.forEach(e => e.update(dt, player)); projectiles.forEach(p => p.update(dt)); effects.forEach(e => e.update(dt)); decals.forEach(e => e.update(dt)); portals.forEach(p => p.update(dt));
-    loot.forEach(l => { if (player.pos.dist(l.pos) < 50) { l.dead = true; collectLoot(l); } });
-    enemies = enemies.filter(e => !e.dead); projectiles = projectiles.filter(p => !p.dead); effects = effects.filter(e => !e.dead); loot = loot.filter(l => !l.dead); decals = decals.filter(d => !d.dead);
-    // Cap collections to prevent memory growth during long sessions
+    // OPTIMIZATION: for loops instead of forEach in hot paths (Tier 2 #3)
+    for (let i = 0; i < enemies.length; i++) enemies[i].update(dt, player);
+    for (let i = 0; i < projectiles.length; i++) projectiles[i].update(dt);
+    for (let i = 0; i < effects.length; i++) effects[i].update(dt);
+    for (let i = 0; i < decals.length; i++) decals[i].update(dt);
+    for (let i = 0; i < portals.length; i++) portals[i].update(dt);
+    for (let i = 0; i < loot.length; i++) {
+        if (player.pos.dist(loot[i].pos) < 50) { loot[i].dead = true; collectLoot(loot[i]); }
+    }
+
+    // OPTIMIZATION: Cap collections BEFORE filtering to reduce work (Tier 1 #4)
     if (effects.length > MAX_EFFECTS) effects.splice(0, effects.length - MAX_EFFECTS);
     if (decals.length > MAX_DECALS) decals.splice(0, decals.length - MAX_DECALS);
 
-    // Check if current room is cleared
-    const room = getCurrentRoom();
-    if (room && !room.cleared && enemies.length === 0) {
-        room.cleared = true;
+    // OPTIMIZATION: In-place compaction instead of filter() (Tier 2 #1)
+    // Eliminates 5 array allocations per frame (300 allocations/sec at 60fps)
+    compactArray(enemies);
+    compactArray(projectiles);
+    compactArray(effects);
+    compactArray(loot);
+    compactArray(decals);
+
+    // Check if current room is cleared (OPTIMIZATION: reuse cached currentRoom from line 3837)
+    if (currentRoom && !currentRoom.cleared && enemies.length === 0) {
+        currentRoom.cleared = true;
 
         // Only show cleared message and loot for combat rooms (spawns > 0)
-        if (room.template.spawns > 0) {
-            showAnnouncement("ROOM CLEARED", `${room.template.name.toUpperCase()}`, "#00ff00");
-            logMessage("System", `${room.template.name} cleared!`, "log-achievement");
+        if (currentRoom.template.spawns > 0) {
+            showAnnouncement("ROOM CLEARED", `${currentRoom.template.name.toUpperCase()}`, "#00ff00");
+            logMessage("System", `${currentRoom.template.name} cleared!`, "log-achievement");
             speakSystem("Room Cleared.", 1.0, 1.1);
             playSound('portal');
 
             // Spawn loot
             const lootCount = 1 + Math.floor(Math.random() * 2);
             for (let i = 0; i < lootCount; i++) {
-                const spawnPos = room.getSpawnPoint();
+                const spawnPos = currentRoom.getSpawnPoint(true); // Avoid door zones so loot is reachable
                 loot.push(new LootBox(spawnPos.x, spawnPos.y, false, false));
             }
         }
 
         // If exit room, spawn stairwell portal immediately
-        if (room.template.hasExit) {
-            const center = room.getCenter();
+        if (currentRoom.template.hasExit) {
+            const center = currentRoom.getCenter();
             portals.push(new Stairway(center.x, center.y));
             showAnnouncement("FLOOR CLEARED", "STAIRWELL OPEN", "#00ff00");
             speakSystem("Floor cleared. Stairwell open.");
@@ -4116,20 +4238,21 @@ function draw() {
             // Mugs on counter
             ctx.font = '30px serif';
             ctx.fillText('🍺🍺🍺', barX, barY + 40);
-            // Cozy ambiance particles
-            if (Math.random() < 0.1) {
+            // OPTIMIZATION: Time-based particle spawning (Tier 3 #2)
+            if (gameTime - lastSafeRoomParticleTime > PARTICLE_SPAWN_INTERVAL) {
                 effects.push(new Particle(barX + Math.random() * 100 - 50, barY - 30, '#ffaa00', 3, 20));
+                lastSafeRoomParticleTime = gameTime;
             }
             ctx.restore();
         }
     }
 
-    // Draw game entities
-    decals.forEach(d => d.draw(ctx));
-    loot.forEach(l => l.draw(ctx));
-    portals.forEach(p => p.draw(ctx));
-    enemies.forEach(e => e.draw(ctx));
-    projectiles.forEach(p => p.draw(ctx));
+    // Draw game entities (OPTIMIZATION: for loops instead of forEach - Tier 2 #3)
+    for (let i = 0; i < decals.length; i++) decals[i].draw(ctx);
+    for (let i = 0; i < loot.length; i++) loot[i].draw(ctx);
+    for (let i = 0; i < portals.length; i++) portals[i].draw(ctx);
+    for (let i = 0; i < enemies.length; i++) enemies[i].draw(ctx);
+    for (let i = 0; i < projectiles.length; i++) projectiles[i].draw(ctx);
     // Draw invulnerability shield during grace period
     if (playerGraceTimer > 0) {
         ctx.save();
@@ -4155,7 +4278,7 @@ function draw() {
     donut.draw(ctx);
     if(mongo) mongo.draw(ctx);
     if(katia) katia.draw(ctx);
-    effects.forEach(e => e.draw(ctx));
+    for (let i = 0; i < effects.length; i++) effects[i].draw(ctx);
     ctx.restore();
 
     // Light/darkness effect - use room's light radius if set
@@ -4164,11 +4287,22 @@ function draw() {
 
     let screenPlayerX = player.pos.x - camera.x;
     let screenPlayerY = player.pos.y - camera.y;
-    let gradient = ctx.createRadialGradient(screenPlayerX, screenPlayerY, 50, screenPlayerX, screenPlayerY, lightRadius);
-    gradient.addColorStop(0, "rgba(0,0,0,0)");
-    gradient.addColorStop(0.8, "rgba(5,5,5,0.6)");
-    gradient.addColorStop(1, "rgba(0,0,0,0.95)");
-    ctx.fillStyle = gradient;
+
+    // OPTIMIZATION: Cache light gradient (Tier 2 #2)
+    const posChanged = Math.abs(screenPlayerX - cachedLightPos.x) > 5 ||
+                       Math.abs(screenPlayerY - cachedLightPos.y) > 5;
+    const radiusChanged = lightRadius !== cachedLightRadius;
+
+    if (!cachedLightGradient || posChanged || radiusChanged) {
+        cachedLightGradient = ctx.createRadialGradient(screenPlayerX, screenPlayerY, 50, screenPlayerX, screenPlayerY, lightRadius);
+        cachedLightGradient.addColorStop(0, "rgba(0,0,0,0)");
+        cachedLightGradient.addColorStop(0.8, "rgba(5,5,5,0.6)");
+        cachedLightGradient.addColorStop(1, "rgba(0,0,0,0.95)");
+        cachedLightRadius = lightRadius;
+        cachedLightPos = { x: screenPlayerX, y: screenPlayerY };
+    }
+
+    ctx.fillStyle = cachedLightGradient;
     ctx.fillRect(0, 0, width, height);
 
     // Projectile glow effects
@@ -4177,13 +4311,22 @@ function draw() {
     ctx.translate(-camera.x, -camera.y);
     projectiles.forEach(p => {
         if (p.glow) {
-            let grad = ctx.createRadialGradient(p.pos.x, p.pos.y, 5, p.pos.x, p.pos.y, 60);
-            grad.addColorStop(0, p.glowColor);
-            grad.addColorStop(1, "rgba(0,0,0,0)");
-            ctx.fillStyle = grad;
+            // OPTIMIZATION: Cache gradients by color (Tier 2 #2)
+            const cacheKey = p.glowColor || '#ffffff';
+            if (!projectileGlowCache.has(cacheKey)) {
+                let grad = ctx.createRadialGradient(0, 0, 5, 0, 0, 60);
+                grad.addColorStop(0, cacheKey);
+                grad.addColorStop(1, "rgba(0,0,0,0)");
+                projectileGlowCache.set(cacheKey, grad);
+            }
+
+            ctx.save();
+            ctx.translate(p.pos.x, p.pos.y);
+            ctx.fillStyle = projectileGlowCache.get(cacheKey);
             ctx.beginPath();
-            ctx.arc(p.pos.x, p.pos.y, 60, 0, Math.PI*2);
+            ctx.arc(0, 0, 60, 0, Math.PI*2);
             ctx.fill();
+            ctx.restore();
         }
     });
     ctx.restore();
