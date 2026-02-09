@@ -360,6 +360,7 @@
         <div id="mobile-controls">
             <div class="joystick-zone" id="joystick"></div>
             <div class="action-btn" id="kick-btn">KICK</div>
+            <div class="action-btn" id="stats-btn" style="bottom: 130px; width: 70px; height: 70px; font-size: 24px; background: rgba(50, 100, 200, 0.4); border-color: rgba(100, 150, 255, 0.8);">📊</div>
         </div>
     </div>
 
@@ -2633,7 +2634,7 @@ class Player extends Entity {
     }
     kick() {
         if (this.kickCooldown > 0) return;
-        this.kickCooldown = this.stats.kickCooldownMax; playSound('kick'); effects.push(new Effect(this.pos.x, this.pos.y, '🦶', 70, 0.2)); addChatMessage('kick'); screenshake = 5;
+        this.kickCooldown = this.stats.kickCooldownMax; if (navigator.vibrate) navigator.vibrate(25); playSound('kick'); effects.push(new Effect(this.pos.x, this.pos.y, '🦶', 70, 0.2)); addChatMessage('kick'); screenshake = 5;
         enemies.forEach(e => { if (e.pos.dist(this.pos) < 100) { e.takeDamage(this.stats.kickDamage * this.stats.dmgMult, true); let dir = e.pos.sub(this.pos).normalize(); e.pos = e.pos.add(dir.scale(120)); e.stunned = 0.5; } });
     }
     useInventory(slotIdx) {
@@ -2657,12 +2658,12 @@ class Player extends Entity {
         if (used) { slot.count--; if (slot.count <= 0) slot.item = null; updateInventoryUI(); }
     }
     addItem(itemType) { for (let s of this.inventory) { if (s.item && s.item.id === itemType.id) { s.count++; updateInventoryUI(); return true; } } for (let s of this.inventory) { if (!s.item) { s.item = itemType; s.count = 1; updateInventoryUI(); return true; } } return false; }
-    takeDamage(amount) { if (this.invulnerable > 0) return; this.hp -= amount; this.invulnerable = 1.0; updateHealthUI(); playSound('hit'); screenshake = 3; for(let i=0; i<5; i++) effects.push(new Particle(this.pos.x, this.pos.y, '#f00', 5, 100)); if (this.hp <= 0) gameOver("Killed by a dungeon creep."); }
-    gainXp(amount) { this.xp += amount; if (this.xp >= this.xpToLevel) { this.xp -= this.xpToLevel; this.lvl++; this.xpToLevel = Math.floor(this.xpToLevel * 1.5); 
+    takeDamage(amount) { if (this.invulnerable > 0) return; this.hp -= amount; this.invulnerable = 1.0; if (navigator.vibrate) navigator.vibrate(50); updateHealthUI(); playSound('hit'); screenshake = 3; for(let i=0; i<5; i++) effects.push(new Particle(this.pos.x, this.pos.y, '#f00', 5, 100)); if (this.hp <= 0) gameOver("Killed by a dungeon creep."); }
+    gainXp(amount) { this.xp += amount; if (this.xp >= this.xpToLevel) { this.xp -= this.xpToLevel; this.lvl++; this.xpToLevel = Math.floor(this.xpToLevel * 1.5);
         // Stat Growth on Level Up
         this.attributes.str += 2; this.attributes.dex += 2; this.attributes.con += 2; this.attributes.int += 1;
         this.recalcStats();
-        updateXpUI(); showAnnouncement("LEVEL UP!", "STATS INCREASED", "#00ff00"); speakSystem(SYSTEM_QUOTES.level); triggerLevelUp(); } else updateXpUI(); }
+        if (navigator.vibrate) navigator.vibrate([10, 50, 10]); updateXpUI(); showAnnouncement("LEVEL UP!", "STATS INCREASED", "#00ff00"); speakSystem(SYSTEM_QUOTES.level); triggerLevelUp(); } else updateXpUI(); }
 }
 
 class Donut extends Entity {
@@ -4348,6 +4349,7 @@ function spawnEnemy() {
 
 function collectLoot(l) {
     floorStats.lootCollected++; // Track loot for recap
+    if (navigator.vibrate) navigator.vibrate(10);
 
     if (l.isMimic) {
         // Trigger Mimic
@@ -4409,7 +4411,7 @@ function triggerLevelUp() {
     }); 
 }
 function gameOver(reason) { gameState = 'OVER'; ui.over.classList.remove('hidden'); ui.finalScore.innerText = `Score: ${score} | Viewers: ${viewers}`; ui.deathReason.innerText = reason; speakSystem(SYSTEM_QUOTES.death); }
-function setupTouch() { const joyEl = document.getElementById('joystick'); const joyParams = { maxDist: 50 }; joyEl.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; joystick.ptrId = t.identifier; joystick.active = true; const r = joyEl.getBoundingClientRect(); joystick.originX = r.left+r.width/2; joystick.originY = r.top+r.height/2; updateJoystick(t.clientX, t.clientY); }, {passive: false}); joyEl.addEventListener('touchmove', e => { e.preventDefault(); for (let i=0; i<e.changedTouches.length; i++) { if (e.changedTouches[i].identifier === joystick.ptrId) updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY); } }, {passive: false}); const end = (e) => { e.preventDefault(); joystick.active = false; joystick.dx=0; joystick.dy=0; }; joyEl.addEventListener('touchend', end); joyEl.addEventListener('touchcancel', end); function updateJoystick(x, y) { let dx=x-joystick.originX, dy=y-joystick.originY, d=Math.sqrt(dx*dx+dy*dy); if(d>joyParams.maxDist){dx=(dx/d)*joyParams.maxDist; dy=(dy/d)*joyParams.maxDist;} joystick.dx=dx/joyParams.maxDist; joystick.dy=dy/joyParams.maxDist; } document.getElementById('kick-btn').addEventListener('touchstart', (e) => { e.preventDefault(); if(gameState==='PLAY') player.kick(); }); }
+function setupTouch() { const joyEl = document.getElementById('joystick'); const joyParams = { maxDist: 50 }; joyEl.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; joystick.ptrId = t.identifier; joystick.active = true; const r = joyEl.getBoundingClientRect(); joystick.originX = r.left+r.width/2; joystick.originY = r.top+r.height/2; updateJoystick(t.clientX, t.clientY); }, {passive: false}); joyEl.addEventListener('touchmove', e => { e.preventDefault(); for (let i=0; i<e.changedTouches.length; i++) { if (e.changedTouches[i].identifier === joystick.ptrId) updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY); } }, {passive: false}); const end = (e) => { e.preventDefault(); joystick.active = false; joystick.dx=0; joystick.dy=0; }; joyEl.addEventListener('touchend', end); joyEl.addEventListener('touchcancel', end); function updateJoystick(x, y) { let dx=x-joystick.originX, dy=y-joystick.originY, d=Math.sqrt(dx*dx+dy*dy); if(d>joyParams.maxDist){dx=(dx/d)*joyParams.maxDist; dy=(dy/d)*joyParams.maxDist;} joystick.dx=dx/joyParams.maxDist; joystick.dy=dy/joyParams.maxDist; } document.getElementById('kick-btn').addEventListener('touchstart', (e) => { e.preventDefault(); if(gameState==='PLAY') player.kick(); }); document.getElementById('stats-btn').addEventListener('touchstart', (e) => { e.preventDefault(); toggleStats(); }); // Inventory slot touch handlers for (let i = 0; i < 3; i++) { const slot = document.getElementById('slot-' + i); slot.addEventListener('touchstart', (e) => { e.preventDefault(); if (gameState === 'PLAY') { useItem(i); // Visual feedback slot.style.transform = 'scale(0.9)'; setTimeout(() => slot.style.transform = '', 100); } }, {passive: false}); } }
 
 init();
 
